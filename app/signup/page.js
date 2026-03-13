@@ -4,8 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
-import { motion, AnimatePresence } from 'framer-motion'
-import { FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight, FiCheck, FiBriefcase } from 'react-icons/fi'
+import { motion } from 'framer-motion'
+import { FiUser, FiMail, FiLock, FiEye, FiEyeOff, FiArrowRight, FiCheck } from 'react-icons/fi'
 import { FcGoogle } from 'react-icons/fc'
 import { FaGithub, FaApple, FaGraduationCap, FaChalkboardTeacher } from 'react-icons/fa'
 import toast from 'react-hot-toast'
@@ -17,14 +17,11 @@ const ParticleBackground = dynamic(
 
 export default function SignupPage() {
   const router = useRouter()
-  const [role, setRole] = useState('student')
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
-    expertise: '',
-    experience: '',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -63,7 +60,7 @@ export default function SignupPage() {
 
     setIsLoading(true)
     await new Promise((resolve) => setTimeout(resolve, 1500))
-    toast.success(`${role === 'student' ? 'Account created' : 'Application submitted'}!`)
+    toast.success('Account created successfully!')
     setIsLoading(false)
     router.push('/dashboard')
   }
@@ -72,17 +69,11 @@ export default function SignupPage() {
     toast.success(`Signing up with ${provider}...`)
   }
 
-  const formVariants = {
-    hidden: { opacity: 0, y: 10 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.3 } },
-    exit: { opacity: 0, y: -10, transition: { duration: 0.2 } }
-  }
-
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex relative overflow-hidden">
       <ParticleBackground variant="auth" />
 
-      {/* Left Side - Illustration */}
+  
       <div className="hidden lg:flex flex-1 items-center justify-center bg-gradient-to-br from-purple-900/20 to-[#0A0A0A] p-12 relative z-10">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -101,7 +92,7 @@ export default function SignupPage() {
                   <FaChalkboardTeacher className="w-8 h-8 text-purple-400" />
                 </div>
                 <div className="w-16 h-16 rounded-xl bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center">
-                  <FiBriefcase className="w-8 h-8 text-purple-400" />
+                  <FiCheck className="w-8 h-8 text-purple-400" />
                 </div>
                 <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-purple-700 to-purple-800 flex items-center justify-center shadow-lg">
                   <FiCheck className="w-8 h-8 text-white" />
@@ -130,7 +121,7 @@ export default function SignupPage() {
         </motion.div>
       </div>
 
-      {/* Right Side - Form */}
+   
       <div className="flex-1 flex items-center justify-center px-6 py-12 lg:px-8 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -138,7 +129,7 @@ export default function SignupPage() {
           transition={{ duration: 0.5 }}
           className="w-full max-w-md"
         >
-          {/* Logo */}
+        
           <Link href="/" className="flex items-center gap-2 mb-6">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-600 to-purple-800 flex items-center justify-center">
               <span className="text-white font-bold text-lg" style={{ fontFamily: 'var(--font-syne)' }}>E</span>
@@ -146,43 +137,15 @@ export default function SignupPage() {
             <span className="text-lg font-bold text-white" style={{ fontFamily: 'var(--font-syne)' }}>E-Learning Hub</span>
           </Link>
 
-          {/* Header */}
+        
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-white mb-1" style={{ fontFamily: 'var(--font-syne)' }}>
-              Create account
+              Create your account
             </h1>
-            <p className="text-gray-400 text-sm">Choose your role to get started</p>
+            <p className="text-gray-400 text-sm">Join our learning community today</p>
           </div>
 
-          {/* Role Toggle Tabs */}
-          <div className="bg-black border border-purple-800/50 rounded-xl p-1 flex mb-6">
-            <button
-              type="button"
-              onClick={() => setRole('student')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                role === 'student'
-                  ? 'bg-purple-700 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <FaGraduationCap className="w-4 h-4" />
-              Student
-            </button>
-            <button
-              type="button"
-              onClick={() => setRole('instructor')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                role === 'instructor'
-                  ? 'bg-purple-700 text-white'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              <FaChalkboardTeacher className="w-4 h-4" />
-              Instructor
-            </button>
-          </div>
-
-          {/* Social Signup */}
+         
           <div className="flex gap-2 mb-5">
             {[
               { icon: FcGoogle, provider: 'Google' },
@@ -199,7 +162,7 @@ export default function SignupPage() {
             ))}
           </div>
 
-          {/* Divider */}
+     
           <div className="relative mb-5">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-[#2A2A2A]"></div>
@@ -209,172 +172,117 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Form */}
+        
           <form onSubmit={handleSubmit} className="space-y-4">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={role}
-                variants={formVariants}
-                initial="hidden"
-                animate="visible"
-                exit="exit"
-                className="space-y-4"
-              >
-                {/* Full Name */}
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-300 mb-1.5">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                    <input
-                      type="text"
-                      id="fullName"
-                      name="fullName"
-                      value={formData.fullName}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-10 pr-4 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
-                      placeholder="Enter your name"
-                    />
-                  </div>
-                </div>
+           
+            <div>
+              <label htmlFor="fullName" className="block text-sm font-medium text-gray-300 mb-1.5">
+                Full Name
+              </label>
+              <div className="relative">
+                <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                <input
+                  type="text"
+                  id="fullName"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
+                  placeholder="Enter your full name"
+                />
+              </div>
+            </div>
 
-                {/* Email */}
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1.5">
-                    Email Address
-                  </label>
-                  <div className="relative">
-                    <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-10 pr-4 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
-                      placeholder="Enter your email"
-                    />
-                  </div>
-                </div>
+           
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1.5">
+                Email Address
+              </label>
+              <div className="relative">
+                <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
+                  placeholder="Enter your email"
+                />
+              </div>
+            </div>
 
-                {/* Instructor-specific fields */}
-                {role === 'instructor' && (
-                  <>
-                    <div>
-                      <label htmlFor="expertise" className="block text-sm font-medium text-gray-300 mb-1.5">
-                        Expertise / Subject
-                      </label>
-                      <div className="relative">
-                        <FiBriefcase className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                        <input
-                          type="text"
-                          id="expertise"
-                          name="expertise"
-                          value={formData.expertise}
-                          onChange={handleChange}
-                          required
-                          className="w-full pl-10 pr-4 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
-                          placeholder="e.g. Web Development"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label htmlFor="experience" className="block text-sm font-medium text-gray-300 mb-1.5">
-                        Years of Experience
-                      </label>
-                      <select
-                        id="experience"
-                        name="experience"
-                        value={formData.experience}
-                        onChange={handleChange}
-                        required
-                        className="w-full px-4 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
-                      >
-                        <option value="" className="bg-[#1A1A1A]">Select experience</option>
-                        <option value="1-2" className="bg-[#1A1A1A]">1-2 years</option>
-                        <option value="3-5" className="bg-[#1A1A1A]">3-5 years</option>
-                        <option value="5-10" className="bg-[#1A1A1A]">5-10 years</option>
-                        <option value="10+" className="bg-[#1A1A1A]">10+ years</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                {/* Password */}
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1.5">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      id="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-10 pr-10 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
-                      placeholder="Create password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+          
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-10 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
+                  placeholder="Create password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {showPassword ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                </button>
+              </div>
+              {formData.password && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {passwordRequirements.map((req, index) => (
+                    <span
+                      key={index}
+                      className={`text-xs px-2 py-0.5 rounded ${
+                        req.met ? 'bg-green-500/20 text-green-400' : 'bg-[#2A2A2A] text-gray-500'
+                      }`}
                     >
-                      {showPassword ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {formData.password && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {passwordRequirements.map((req, index) => (
-                        <span
-                          key={index}
-                          className={`text-xs px-2 py-0.5 rounded ${
-                            req.met ? 'bg-green-500/20 text-green-400' : 'bg-[#2A2A2A] text-gray-500'
-                          }`}
-                        >
-                          {req.label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                      {req.label}
+                    </span>
+                  ))}
                 </div>
+              )}
+            </div>
 
-                {/* Confirm Password */}
-                <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1.5">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      required
-                      className="w-full pl-10 pr-10 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
-                      placeholder="Confirm password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                    >
-                      {showConfirmPassword ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            </AnimatePresence>
+          
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1.5">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                  className="w-full pl-10 pr-10 py-2.5 bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 transition-colors"
+                  placeholder="Confirm password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {showConfirmPassword ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
 
-            {/* Terms */}
+          
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -390,7 +298,7 @@ export default function SignupPage() {
               </span>
             </label>
 
-            {/* Submit */}
+          
             <button
               type="submit"
               disabled={isLoading}
@@ -400,14 +308,14 @@ export default function SignupPage() {
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
               ) : (
                 <>
-                  {role === 'student' ? 'Create Student Account' : 'Apply as Instructor'}
+                  Create Account
                   <FiArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Login Link */}
+        
           <p className="mt-6 text-center text-gray-400 text-sm">
             Already have an account?{' '}
             <Link href="/login" className="text-purple-500 hover:text-purple-400 font-medium transition-colors">
@@ -419,4 +327,3 @@ export default function SignupPage() {
     </div>
   )
 }
-
