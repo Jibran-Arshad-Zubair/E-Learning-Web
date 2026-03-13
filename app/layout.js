@@ -2,6 +2,7 @@ import { Syne, Inter } from 'next/font/google'
 import { Toaster } from 'react-hot-toast'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
+import Providers from './providers'
 
 const syne = Syne({ 
   subsets: ['latin'],
@@ -24,6 +25,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${syne.variable} ${inter.variable}`}>
       <body className="font-sans antialiased bg-[#0A0A0A] text-white">
+        <Providers>
         {children}
         <Toaster 
           position="top-right"
@@ -42,6 +44,7 @@ export default function RootLayout({ children }) {
           }}
         />
         <Analytics />
+        </Providers>
       </body>
     </html>
   )
