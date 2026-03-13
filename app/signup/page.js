@@ -149,8 +149,9 @@ export default function SignupPage() {
           <div className="flex gap-2 mb-5">
             {[
               { icon: FcGoogle, provider: 'Google' },
-              { icon: FaGithub, provider: 'GitHub' },
-              { icon: FaApple, provider: 'Apple' },
+              // { icon: FaGithub, provider: 'GitHub' }, 
+              
+             
             ].map(({ icon: Icon, provider }) => (
               <button
                 key={provider}
