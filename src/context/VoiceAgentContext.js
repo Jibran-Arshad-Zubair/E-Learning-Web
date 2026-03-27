@@ -19,6 +19,7 @@ export function VoiceAgentProvider({ children }) {
   const audioQueueRef = useRef([]);
   const isPlayingRef = useRef(false);
   const currentAudioRef = useRef(null);
+  const currentResponseRef = useRef(null);
 
   // Initialize WebSocket connection
   const initializeWebSocket = useCallback(() => {
@@ -43,7 +44,6 @@ export function VoiceAgentProvider({ children }) {
   useEffect(() => {
     initializeWebSocket();
 
-    // Handle page visibility change (reconnect when tab becomes active)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && (!wsRef.current || !wsRef.current.isOpen())) {
         initializeWebSocket();
@@ -60,17 +60,72 @@ export function VoiceAgentProvider({ children }) {
     };
   }, [initializeWebSocket]);
 
-  // Audio playback helper
+  // Helper function to play audio with proper loading
   const playAudioBlob = useCallback(async (audioBlob) => {
-    if (!audioBlob) return;
+    if (!audioBlob || audioBlob.size === 0) {
+      console.error('Empty audio blob received');
+      return;
+    }
 
+    console.log('Playing audio blob:', audioBlob.size, 'bytes', 'type:', audioBlob.type);
+
+    // Create URL for the blob
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
+    
+    // Set up event listeners
+    const onCanPlayThrough = () => {
+      console.log('Audio can play through, duration:', audio.duration);
+    };
+    
+    const onPlay = () => {
+      console.log('Audio playback started');
+    };
+    
+    const onEnded = () => {
+      console.log('Audio playback ended');
+      URL.revokeObjectURL(audioUrl);
+      
+      // Play next in queue
+      if (audioQueueRef.current.length > 0) {
+        const nextAudio = audioQueueRef.current.shift();
+        nextAudio.play().catch(err => {
+          console.error('Error playing next audio:', err);
+        });
+      } else {
+        isPlayingRef.current = false;
+        currentAudioRef.current = null;
+      }
+    };
+    
+    const onError = (e) => {
+      console.error('Audio playback error:', e);
+      URL.revokeObjectURL(audioUrl);
+      
+      // Try next in queue
+      if (audioQueueRef.current.length > 0) {
+        const nextAudio = audioQueueRef.current.shift();
+        nextAudio.play().catch(err => {
+          console.error('Error playing next audio:', err);
+        });
+      } else {
+        isPlayingRef.current = false;
+        currentAudioRef.current = null;
+      }
+    };
+    
+    audio.addEventListener('canplaythrough', onCanPlayThrough);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('ended', onEnded);
+    audio.addEventListener('error', onError);
+    
+    // Store current audio reference
     currentAudioRef.current = audio;
-
+    currentResponseRef.current = audio;
+    
     // Add to queue
     audioQueueRef.current.push(audio);
-
+    
     // If not playing, start playing
     if (!isPlayingRef.current) {
       isPlayingRef.current = true;
@@ -78,19 +133,16 @@ export function VoiceAgentProvider({ children }) {
       const playNext = () => {
         if (audioQueueRef.current.length === 0) {
           isPlayingRef.current = false;
+          currentAudioRef.current = null;
           return;
         }
         
         const nextAudio = audioQueueRef.current.shift();
-        nextAudio.play();
-        nextAudio.onended = () => {
-          URL.revokeObjectURL(nextAudio.src);
+        nextAudio.play().catch(err => {
+          console.error('Error playing audio:', err);
+          // If error, move to next
           playNext();
-        };
-        nextAudio.onerror = () => {
-          URL.revokeObjectURL(nextAudio.src);
-          playNext();
-        };
+        });
       };
       
       playNext();
@@ -100,8 +152,15 @@ export function VoiceAgentProvider({ children }) {
   // Stop current audio playback
   const stopAudio = useCallback(() => {
     if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current.currentTime = 0;
+      try {
+        currentAudioRef.current.pause();
+        currentAudioRef.current.currentTime = 0;
+        if (currentAudioRef.current.src) {
+          URL.revokeObjectURL(currentAudioRef.current.src);
+        }
+      } catch (err) {
+        console.error('Error stopping audio:', err);
+      }
       currentAudioRef.current = null;
     }
     audioQueueRef.current = [];
@@ -124,13 +183,26 @@ export function VoiceAgentProvider({ children }) {
       const updatedHistory = [...conversationHistory, { role: 'user', content: message }];
       setConversationHistory(updatedHistory);
 
+      console.log('Sending message:', message);
+
       // Send to WebSocket
       const result = await wsRef.current.send(
         message,
         updatedHistory,
         extractedData,
-        onAudioChunk
+        (chunk) => {
+          // Optional: handle audio chunks if needed
+          if (onAudioChunk) onAudioChunk(chunk);
+        }
       );
+
+      console.log('Received result:', {
+        hasResponse: !!result.response,
+        responseLength: result.response?.length,
+        hasAudio: !!result.audioBlob,
+        audioSize: result.audioBlob?.size,
+        showDoctors: result.show_doctors
+      });
 
       // Handle response
       if (result.response) {
@@ -150,16 +222,19 @@ export function VoiceAgentProvider({ children }) {
       }
 
       // Play audio if available
-      if (result.audioBlob) {
+      if (result.audioBlob && result.audioBlob.size > 0) {
+        console.log('Playing audio response...');
         await playAudioBlob(result.audioBlob);
+      } else {
+        console.warn('No audio blob received or empty audio');
       }
 
       setIsProcessing(false);
       return result;
     } catch (err) {
+      console.error('Send message error:', err);
       setError(err.message || 'Failed to get agent response');
       setIsProcessing(false);
-      console.error('Send message error:', err);
       return null;
     }
   }, [conversationHistory, extractedData, initializeWebSocket, playAudioBlob]);

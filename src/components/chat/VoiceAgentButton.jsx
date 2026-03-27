@@ -41,6 +41,13 @@ export default function VoiceAgentButton() {
     }
   }, [transcript, isListening, sendMessage, resetTranscript]);
 
+  useEffect(() => {
+  // Debug: Log when processing state changes
+  if (isProcessing) {
+    console.log('Agent is processing...');
+  }
+}, [isProcessing]);
+
   // Scroll to bottom of messages
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -88,7 +95,7 @@ export default function VoiceAgentButton() {
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 p-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full shadow-lg hover:shadow-xl transition-shadow"
+        className="fixed bottom-6 right-16 z-50 p-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full shadow-lg hover:shadow-xl transition-shadow"
       >
         <Mic className="w-6 h-6 text-white" />
       </motion.button>
@@ -100,7 +107,7 @@ export default function VoiceAgentButton() {
             initial={{ opacity: 0, y: 50, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-96 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700"
+           className="fixed bottom-20 right-6 z-50 w-96 max-h-[70vh] flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700"
           >
             {/* Header */}
             <div className="p-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white">
@@ -138,7 +145,7 @@ export default function VoiceAgentButton() {
             </div>
 
             {/* Messages */}
-            <div className="h-96 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-800">
+           <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-800">
               {conversationHistory.length === 0 && (
                 <div className="text-center text-gray-500 dark:text-gray-400 mt-32">
                   <Mic className="w-12 h-12 mx-auto mb-2 opacity-50" />
