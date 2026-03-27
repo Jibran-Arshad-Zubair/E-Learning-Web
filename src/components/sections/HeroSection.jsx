@@ -1,42 +1,41 @@
-﻿'use client'
+﻿"use client";
 
-import { memo } from 'react'
-import Link from 'next/link'
-import Image from 'next/image'
-import dynamic from 'next/dynamic'
-import { motion } from 'framer-motion'
-import { Play, Users } from 'lucide-react'
-import Button from '../ui/Button'
-import Badge from '../ui/Badge'
+import { memo } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import dynamic from "next/dynamic";
+import { motion } from "framer-motion";
+import { Play, Users } from "lucide-react";
+import Button from "../ui/Button";
+import Badge from "../ui/Badge";
 
-const ParticleBackground = dynamic(
-  () => import('../ui/ParticleBackground'),
-  { ssr: false }
-)
+const ParticleBackground = dynamic(() => import("../ui/ParticleBackground"), {
+  ssr: false,
+});
 
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.15 }
-  }
-}
+    transition: { staggerChildren: 0.15 },
+  },
+};
 
 const itemVariants = {
   hidden: { opacity: 0, y: 30 },
-  visible: { 
-    opacity: 1, 
+  visible: {
+    opacity: 1,
     y: 0,
-    transition: { duration: 0.6, ease: 'easeOut' }
-  }
-}
+    transition: { duration: 0.6, ease: "easeOut" },
+  },
+};
 
 const studentAvatars = [
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop',
-  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=40&h=40&fit=crop',
-]
+  "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=40&h=40&fit=crop",
+  "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop",
+  "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=40&h=40&fit=crop",
+  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=40&h=40&fit=crop",
+];
 
 function HeroSection() {
   return (
@@ -64,7 +63,10 @@ function HeroSection() {
 
       {/* Floating Orb */}
       <div className="absolute top-1/4 right-1/4 w-96 h-96 bg-purple-800/30 rounded-full blur-3xl floating-orb" />
-      <div className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl floating-orb" style={{ animationDelay: '2s' }} />
+      <div
+        className="absolute bottom-1/4 left-1/4 w-64 h-64 bg-purple-600/20 rounded-full blur-3xl floating-orb"
+        style={{ animationDelay: "2s" }}
+      />
 
       {/* Content */}
       <motion.div
@@ -73,23 +75,20 @@ function HeroSection() {
         animate="visible"
         className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center"
       >
-        <motion.div variants={itemVariants}>
-          <Badge label="#1 Learning Platform" className="mb-6" />
-        </motion.div>
-
         <motion.h1
           variants={itemVariants}
-          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 font-[family-name:var(--font-syne)] leading-tight text-balance"
+          className="text-xl sm:text-xl md:text-3xl lg:text-3xl xl:text-5xl font-bold text-white mb-6 font-[family-name:var(--font-syne)] leading-tight text-balance"
         >
-          Unlock Your Potential.{' '}
+          Unlock Your Potential.{" "}
           <span className="gradient-text">Learn From The Best.</span>
         </motion.h1>
 
         <motion.p
           variants={itemVariants}
-          className="text-base sm:text-lg text-gray-300 mb-8 max-w-xl mx-auto leading-relaxed"
+          className="text-sm sm:text-base md:text-lg text-gray-300 mb-8 max-w-xl mx-auto leading-relaxed"
         >
-          Join 50K+ students learning from world-class instructors in Development, Design, Business & More.
+          Join 50K+ students learning from world-class instructors in
+          Development, Design, Business & More.
         </motion.p>
 
         <motion.div
@@ -97,11 +96,11 @@ function HeroSection() {
           className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10"
         >
           <Link href="/courses">
-            <Button variant="primary" size="lg">
+            <Button variant="primary" size="md">
               Explore Courses
             </Button>
           </Link>
-          <Button variant="outline" size="lg">
+          <Button variant="outline" size="md">
             <Play className="w-4 h-4" />
             Watch Demo
           </Button>
@@ -116,7 +115,7 @@ function HeroSection() {
             {studentAvatars.map((avatar, index) => (
               <div
                 key={index}
-                className="w-8 h-8 rounded-full border-2 border-black overflow-hidden"
+                className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 rounded-full border-2 border-black overflow-hidden"
               >
                 <Image
                   src={avatar}
@@ -128,9 +127,11 @@ function HeroSection() {
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-gray-300">
-            <Users className="w-4 h-4 text-purple-400" />
-            <span><strong className="text-white">50K+</strong> Enrolled</span>
+          <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-300">
+            <Users className="w-3 h-3 sm:w-4 sm:h-4 text-purple-400" />
+            <span>
+              <strong className="text-white">50K+</strong> Enrolled
+            </span>
           </div>
         </motion.div>
       </motion.div>
@@ -151,8 +152,7 @@ function HeroSection() {
         </motion.div>
       </motion.div>
     </section>
-  )
+  );
 }
 
-export default memo(HeroSection)
-
+export default memo(HeroSection);
