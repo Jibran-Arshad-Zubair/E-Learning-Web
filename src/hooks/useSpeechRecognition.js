@@ -1,4 +1,4 @@
-// src/hooks/useSpeechRecognition.js
+
 'use client'
 
 import { useState, useCallback, useRef } from 'react';

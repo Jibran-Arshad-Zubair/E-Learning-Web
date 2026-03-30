@@ -1,4 +1,4 @@
-// src/components/chat/VoiceAgentButton.jsx
+
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react';
