@@ -45,50 +45,10 @@ export default function VoiceAgentButton() {
 
   // Auto-send when transcript is finalized
   useEffect(() => {
-    if (transcript && !isListening && transcript.trim()) {
-      sendMessage(transcript.trim());
-      resetTranscript();
-    }
-  }, [transcript, isListening, sendMessage, resetTranscript]);
-
-  useEffect(() => {
-    // Debug: Log when processing state changes
-    if (isProcessing) {
-      console.log("Agent is processing...");
-    }
-  }, [isProcessing]);
-
-  useEffect(() => {
     const sendWithContext = async (message) => {
-      // Check if user is asking about the website
-      const websiteQuestions = [
-        "tell me about",
-        "what is this",
-        "about this website",
-        "explain this site",
-        "what does this site do",
-        "what is this platform",
-        "tell me about this website",
-        "what is e-learning",
-        "what courses",
-        "about this platform",
-      ];
-
-      const isAskingAboutWebsite = websiteQuestions.some((q) =>
-        message.toLowerCase().includes(q),
-      );
-
-      if (isAskingAboutWebsite) {
-        // Get current website context
-        const websiteContext = getWebsiteContext();
-        const formattedContext = formatContextForAgent(websiteContext);
-
-        // Send message with context
-        await sendMessage(message, formattedContext);
-      } else {
-        // Normal message without context
-        await sendMessage(message);
-      }
+      const context = getWebsiteContext();
+      const formattedContext = formatContextForAgent(context);
+      await sendMessage(message, formattedContext);
     };
 
     if (transcript && !isListening && transcript.trim()) {
@@ -103,6 +63,13 @@ export default function VoiceAgentButton() {
     getWebsiteContext,
     formatContextForAgent,
   ]);
+
+  useEffect(() => {
+    // Debug: Log when processing state changes
+    if (isProcessing) {
+      console.log("Agent is processing...");
+    }
+  }, [isProcessing]);
 
   // Scroll to bottom of messages
   const scrollToBottom = useCallback(() => {
@@ -128,40 +95,16 @@ export default function VoiceAgentButton() {
         const text = inputText.trim();
         setInputText("");
 
-        // Check if asking about website
-        const websiteQuestions = [
-          "tell me about",
-          "what is this",
-          "about this website",
-          "explain this site",
-          "what does this site do",
-          "what is this platform",
-          "tell me about this website",
-          "what is e-learning",
-          "what courses",
-          "about this platform",
-        ];
+        // Always send with website context
+        const context = getWebsiteContext();
+        const formattedContext = formatContextForAgent(context);
 
-        const isAskingAboutWebsite = websiteQuestions.some((q) =>
-          text.toLowerCase().includes(q),
-        );
+        console.log("=== SENDING WEBSITE CONTEXT ===");
+        console.log("Context length:", formattedContext.length);
+        console.log("First 300 chars:", formattedContext.substring(0, 300));
+        console.log("===============================");
 
-        if (isAskingAboutWebsite) {
-          const websiteContext = getWebsiteContext();
-          const formattedContext = formatContextForAgent(websiteContext);
-
-          // DEBUG: Log the context being sent
-          console.log("=== SENDING WEBSITE CONTEXT ===");
-          console.log("Context length:", formattedContext.length);
-          console.log("First 500 chars:", formattedContext.substring(0, 500));
-          console.log("===============================");
-
-          // FIX: Use 'text' instead of 'message'
-          await sendMessage(text, formattedContext);
-        } else {
-          // FIX: Use 'text' instead of 'message'
-          await sendMessage(text);
-        }
+        await sendMessage(text, formattedContext);
       }
     },
     [
