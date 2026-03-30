@@ -19,7 +19,7 @@ export function VoiceAgentProvider({ children }) {
   const audioQueueRef = useRef([]);
   const isPlayingRef = useRef(false);
   const currentAudioRef = useRef(null);
-  const currentResponseRef = useRef(null);
+  const audioContextRef = useRef(null);
 
   // Initialize WebSocket connection
   const initializeWebSocket = useCallback(() => {
@@ -60,92 +60,87 @@ export function VoiceAgentProvider({ children }) {
     };
   }, [initializeWebSocket]);
 
-  // Helper function to play audio with proper loading
+  // Helper function to play audio using AudioContext to handle concatenated WAV chunks
   const playAudioBlob = useCallback(async (audioBlob) => {
     if (!audioBlob || audioBlob.size === 0) {
       console.error('Empty audio blob received');
       return;
     }
 
-    console.log('Playing audio blob:', audioBlob.size, 'bytes', 'type:', audioBlob.type);
+    console.log('Playing audio blob:', audioBlob.size, 'bytes');
 
-    // Create URL for the blob
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-    
-    // Set up event listeners
-    const onCanPlayThrough = () => {
-      console.log('Audio can play through, duration:', audio.duration);
-    };
-    
-    const onPlay = () => {
-      console.log('Audio playback started');
-    };
-    
-    const onEnded = () => {
-      console.log('Audio playback ended');
-      URL.revokeObjectURL(audioUrl);
-      
-      // Play next in queue
-      if (audioQueueRef.current.length > 0) {
-        const nextAudio = audioQueueRef.current.shift();
-        nextAudio.play().catch(err => {
-          console.error('Error playing next audio:', err);
-        });
-      } else {
-        isPlayingRef.current = false;
-        currentAudioRef.current = null;
+    // Close any existing audio context before starting a new one
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch (_) {}
+      audioContextRef.current = null;
+    }
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const audioContext = new AudioContextClass();
+    audioContextRef.current = audioContext;
+
+    try {
+      const arrayBuffer = await audioBlob.arrayBuffer();
+      const uint8 = new Uint8Array(arrayBuffer);
+
+      // Find all WAV segment boundaries by scanning for RIFF headers.
+      // Streaming backends send multiple complete WAV chunks; naively concatenating
+      // them causes the decoder to stop at the first header's data-size field,
+      // which is why only the first 2-3 words play.
+      const riff = [0x52, 0x49, 0x46, 0x46]; // "RIFF"
+      const starts = [0];
+      for (let i = 4; i < uint8.length - 3; i++) {
+        if (uint8[i] === riff[0] && uint8[i+1] === riff[1] &&
+            uint8[i+2] === riff[2] && uint8[i+3] === riff[3]) {
+          starts.push(i);
+        }
       }
-    };
-    
-    const onError = (e) => {
-      console.error('Audio playback error:', e);
-      URL.revokeObjectURL(audioUrl);
-      
-      // Try next in queue
-      if (audioQueueRef.current.length > 0) {
-        const nextAudio = audioQueueRef.current.shift();
-        nextAudio.play().catch(err => {
-          console.error('Error playing next audio:', err);
-        });
-      } else {
-        isPlayingRef.current = false;
-        currentAudioRef.current = null;
+
+      // Decode each WAV segment independently
+      const buffers = await Promise.all(
+        starts.map((start, idx) => {
+          const end = starts[idx + 1] ?? uint8.length;
+          return audioContext.decodeAudioData(arrayBuffer.slice(start, end));
+        })
+      );
+
+      // Merge all decoded AudioBuffers into one continuous buffer
+      const channels = buffers[0].numberOfChannels;
+      const sampleRate = buffers[0].sampleRate;
+      const totalLength = buffers.reduce((n, b) => n + b.length, 0);
+      const merged = audioContext.createBuffer(channels, totalLength, sampleRate);
+
+      let offset = 0;
+      for (const buf of buffers) {
+        for (let ch = 0; ch < channels; ch++) {
+          merged.getChannelData(ch).set(buf.getChannelData(ch), offset);
+        }
+        offset += buf.length;
       }
-    };
-    
-    audio.addEventListener('canplaythrough', onCanPlayThrough);
-    audio.addEventListener('play', onPlay);
-    audio.addEventListener('ended', onEnded);
-    audio.addEventListener('error', onError);
-    
-    // Store current audio reference
-    currentAudioRef.current = audio;
-    currentResponseRef.current = audio;
-    
-    // Add to queue
-    audioQueueRef.current.push(audio);
-    
-    // If not playing, start playing
-    if (!isPlayingRef.current) {
+
+      const source = audioContext.createBufferSource();
+      source.buffer = merged;
+      source.connect(audioContext.destination);
+
       isPlayingRef.current = true;
-      
-      const playNext = () => {
-        if (audioQueueRef.current.length === 0) {
+      currentAudioRef.current = source;
+
+      return new Promise((resolve) => {
+        source.onended = () => {
           isPlayingRef.current = false;
           currentAudioRef.current = null;
-          return;
-        }
-        
-        const nextAudio = audioQueueRef.current.shift();
-        nextAudio.play().catch(err => {
-          console.error('Error playing audio:', err);
-          // If error, move to next
-          playNext();
-        });
-      };
-      
-      playNext();
+          audioContextRef.current = null;
+          audioContext.close().catch(() => {});
+          resolve();
+        };
+        source.start(0);
+      });
+    } catch (err) {
+      console.error('Audio playback error:', err);
+      isPlayingRef.current = false;
+      currentAudioRef.current = null;
+      audioContextRef.current = null;
+      audioContext.close().catch(() => {});
     }
   }, []);
 
@@ -153,15 +148,13 @@ export function VoiceAgentProvider({ children }) {
   const stopAudio = useCallback(() => {
     if (currentAudioRef.current) {
       try {
-        currentAudioRef.current.pause();
-        currentAudioRef.current.currentTime = 0;
-        if (currentAudioRef.current.src) {
-          URL.revokeObjectURL(currentAudioRef.current.src);
-        }
-      } catch (err) {
-        console.error('Error stopping audio:', err);
-      }
+        currentAudioRef.current.stop(); // AudioBufferSourceNode.stop()
+      } catch (_) {}
       currentAudioRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
     }
     audioQueueRef.current = [];
     isPlayingRef.current = false;
