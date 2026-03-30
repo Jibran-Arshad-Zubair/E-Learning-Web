@@ -161,76 +161,91 @@ export function VoiceAgentProvider({ children }) {
   }, []);
 
   // Send message to agent
-  const sendMessage = useCallback(async (message, onAudioChunk = null) => {
-    if (!wsRef.current || !wsRef.current.isOpen()) {
-      setError('WebSocket not connected');
-      initializeWebSocket();
-      return null;
+  const sendMessage = useCallback(async (message, websiteContext = null, onAudioChunk = null) => {
+  if (!wsRef.current || !wsRef.current.isOpen()) {
+    setError('WebSocket not connected');
+    initializeWebSocket();
+    return null;
+  }
+
+  setIsProcessing(true);
+  setError(null);
+
+  try {
+    // Add user message to history
+    const updatedHistory = [...conversationHistory, { role: 'user', content: message }];
+    setConversationHistory(updatedHistory);
+
+    console.log('Sending message:', message);
+    if (websiteContext) {
+      console.log('With website context:', websiteContext.substring(0, 200));
     }
 
-    setIsProcessing(true);
-    setError(null);
-
-    try {
-      // Add user message to history
-      const updatedHistory = [...conversationHistory, { role: 'user', content: message }];
-      setConversationHistory(updatedHistory);
-
-      console.log('Sending message:', message);
-
-      // Send to WebSocket
-      const result = await wsRef.current.send(
-        message,
-        updatedHistory,
-        extractedData,
-        (chunk) => {
-          // Optional: handle audio chunks if needed
-          if (onAudioChunk) onAudioChunk(chunk);
-        }
-      );
-
-      console.log('Received result:', {
-        hasResponse: !!result.response,
-        responseLength: result.response?.length,
-        hasAudio: !!result.audioBlob,
-        audioSize: result.audioBlob?.size,
-        showDoctors: result.show_doctors
-      });
-
-      // Handle response
-      if (result.response) {
-        setConversationHistory(prev => [...prev, { role: 'assistant', content: result.response }]);
-      }
-
-      if (result.show_doctors) {
-        setShowDoctors(true);
-      }
-
-      if (result.appointment_pending) {
-        setAppointmentData(result.appointment_pending);
-      }
-
-      if (result.clear_data) {
-        setExtractedData({});
-      }
-
-      // Play audio if available
-      if (result.audioBlob && result.audioBlob.size > 0) {
-        console.log('Playing audio response...');
-        await playAudioBlob(result.audioBlob);
-      } else {
-        console.warn('No audio blob received or empty audio');
-      }
-
-      setIsProcessing(false);
-      return result;
-    } catch (err) {
-      console.error('Send message error:', err);
-      setError(err.message || 'Failed to get agent response');
-      setIsProcessing(false);
-      return null;
+    // Prepare data to send
+    const sendData = {
+      message,
+      conversation_history: updatedHistory,
+      extracted_data: extractedData,
+    };
+    
+    // Add website context if provided
+    if (websiteContext) {
+      sendData.website_context = websiteContext;
     }
-  }, [conversationHistory, extractedData, initializeWebSocket, playAudioBlob]);
+
+    // Send to WebSocket
+    const result = await wsRef.current.send(
+      sendData.message,
+      sendData.conversation_history,
+      sendData.extracted_data,
+      onAudioChunk,
+      sendData.website_context // Pass context as separate param or include in message
+    );
+
+    // Rest of your existing code...
+    // Handle response, play audio, etc.
+    
+    console.log('Received result:', {
+      hasResponse: !!result.response,
+      responseLength: result.response?.length,
+      hasAudio: !!result.audioBlob,
+      audioSize: result.audioBlob?.size
+    });
+
+    // Handle response
+    if (result.response) {
+      setConversationHistory(prev => [...prev, { role: 'assistant', content: result.response }]);
+    }
+
+    if (result.show_doctors) {
+      setShowDoctors(true);
+    }
+
+    if (result.appointment_pending) {
+      setAppointmentData(result.appointment_pending);
+    }
+
+    if (result.clear_data) {
+      setExtractedData({});
+    }
+
+    // Play audio if available
+    if (result.audioBlob && result.audioBlob.size > 0) {
+      console.log('Playing audio response...');
+      await playAudioBlob(result.audioBlob);
+    } else {
+      console.warn('No audio blob received or empty audio');
+    }
+
+    setIsProcessing(false);
+    return result;
+  } catch (err) {
+    console.error('Send message error:', err);
+    setError(err.message || 'Failed to get agent response');
+    setIsProcessing(false);
+    return null;
+  }
+}, [conversationHistory, extractedData, initializeWebSocket, playAudioBlob]);
 
   // Reset conversation
   const resetConversation = useCallback(() => {
