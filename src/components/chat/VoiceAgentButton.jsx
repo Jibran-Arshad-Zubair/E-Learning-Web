@@ -28,10 +28,13 @@ export default function VoiceAgentButton() {
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [avatarState, setAvatarState] = useState("idle");
   const [showAvatarControls, setShowAvatarControls] = useState(false);
+  const [isMicManuallyDisabled, setIsMicManuallyDisabled] = useState(false);
   
   const { getWebsiteContext, formatContextForAgent } = useWebsiteContext();
   const messagesEndRef = useRef(null);
   const avatarRef = useRef(null);
+  const isProcessingRef = useRef(false);
+  const shouldRestartListeningRef = useRef(false);
 
   const {
     isConnected,
@@ -54,6 +57,11 @@ export default function VoiceAgentButton() {
     requestPermission,
   } = useSpeechRecognition();
 
+  // Track processing state with ref
+  useEffect(() => {
+    isProcessingRef.current = isProcessing;
+  }, [isProcessing]);
+
   // Update avatar state based on agent status
   useEffect(() => {
     if (isProcessing) {
@@ -64,7 +72,7 @@ export default function VoiceAgentButton() {
                conversationHistory[conversationHistory.length - 1]?.role === "assistant") {
       setAvatarState("speaking");
       const timer = setTimeout(() => {
-        if (avatarState === "speaking") {
+        if (avatarState === "speaking" && !isProcessing && !isListening) {
           setAvatarState("idle");
         }
       }, 2000);
@@ -73,6 +81,21 @@ export default function VoiceAgentButton() {
       setAvatarState("idle");
     }
   }, [isProcessing, isListening, conversationHistory]);
+
+  // Auto-restart listening after agent finishes responding
+  useEffect(() => {
+    // If not processing, not listening, has permission, and mic not manually disabled
+    if (!isProcessing && !isListening && hasPermission && !isMicManuallyDisabled && welcomePlayed) {
+      // Small delay to ensure everything is settled
+      const timer = setTimeout(() => {
+        if (!isProcessingRef.current && !isListening && hasPermission && !isMicManuallyDisabled) {
+          console.log("Auto-restarting listening...");
+          startListening();
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isProcessing, isListening, hasPermission, isMicManuallyDisabled, welcomePlayed, startListening]);
 
   // Auto-start welcome message flow
   useEffect(() => {
@@ -95,21 +118,22 @@ export default function VoiceAgentButton() {
         setTimeout(() => {
           if (!hasPermission) {
             setShowPermissionDialog(true);
-          } else {
-            setMicrophoneEnabled(true);
+          } else if (!isMicManuallyDisabled) {
+            startListening();
           }
         }, 2000);
       }
     };
     
     initWelcomeFlow();
-  }, [isConnected, welcomePlayed, sendMessage, getWebsiteContext, formatContextForAgent, hasPermission]);
+  }, [isConnected, welcomePlayed, sendMessage, getWebsiteContext, formatContextForAgent, hasPermission, startListening, isMicManuallyDisabled]);
 
   const enableMicrophone = useCallback(async () => {
     setShowPermissionDialog(false);
     try {
       const granted = await requestPermission();
       if (granted) {
+        setIsMicManuallyDisabled(false);
         startListening();
       }
     } catch (err) {
@@ -119,20 +143,39 @@ export default function VoiceAgentButton() {
 
   const cancelMicrophone = useCallback(() => {
     setShowPermissionDialog(false);
-    // Don't start listening, user can manually click mic button later
+    setIsMicManuallyDisabled(true);
   }, []);
+
+  // Handle interruption - stop audio and start listening when user speaks
+  useEffect(() => {
+    if (isListening && isProcessingRef.current) {
+      // User started speaking while agent was processing - INTERRUPT!
+      console.log("Interruption detected! Stopping agent response...");
+      stopAudio(); // Stop current audio playback
+      // The agent will automatically stop processing when it receives the new message
+    }
+  }, [isListening, stopAudio]);
 
   // Auto-send when transcript is finalized
   useEffect(() => {
     const sendWithContext = async (message) => {
-      const context = getWebsiteContext();
-      const formattedContext = formatContextForAgent(context);
-      await sendMessage(message, formattedContext);
+      if (message && message.trim()) {
+        // Stop listening while sending
+        if (isListening) {
+          stopListening();
+        }
+        
+        const context = getWebsiteContext();
+        const formattedContext = formatContextForAgent(context);
+        await sendMessage(message, formattedContext);
+        resetTranscript();
+        
+        // Don't restart listening here - it will auto-restart after processing completes
+      }
     };
 
     if (transcript && !isListening && transcript.trim()) {
       sendWithContext(transcript.trim());
-      resetTranscript();
     }
   }, [
     transcript,
@@ -141,6 +184,7 @@ export default function VoiceAgentButton() {
     resetTranscript,
     getWebsiteContext,
     formatContextForAgent,
+    stopListening,
   ]);
 
   // Scroll to bottom of messages
@@ -154,11 +198,15 @@ export default function VoiceAgentButton() {
 
   const handleMicClick = useCallback(async () => {
     if (isListening) {
+      // Manually stop listening
       stopListening();
+      setIsMicManuallyDisabled(true);
     } else {
+      // Manually start listening
       if (!hasPermission) {
         setShowPermissionDialog(true);
       } else {
+        setIsMicManuallyDisabled(false);
         startListening();
       }
     }
@@ -167,9 +215,14 @@ export default function VoiceAgentButton() {
   const handleTextSubmit = useCallback(
     async (e) => {
       e.preventDefault();
-      if (inputText.trim() && !isProcessing && !isListening) {
+      if (inputText.trim() && !isProcessing) {
         const text = inputText.trim();
         setInputText("");
+
+        // Stop listening if active
+        if (isListening) {
+          stopListening();
+        }
 
         const context = getWebsiteContext();
         const formattedContext = formatContextForAgent(context);
@@ -184,6 +237,7 @@ export default function VoiceAgentButton() {
       sendMessage,
       getWebsiteContext,
       formatContextForAgent,
+      stopListening,
     ],
   );
   
@@ -197,7 +251,11 @@ export default function VoiceAgentButton() {
   const handleReset = useCallback(() => {
     resetConversation();
     resetTranscript();
-  }, [resetConversation, resetTranscript]);
+    setIsMicManuallyDisabled(false);
+    if (hasPermission && !isListening) {
+      startListening();
+    }
+  }, [resetConversation, resetTranscript, hasPermission, isListening, startListening]);
 
   const handlePausePlay = useCallback(() => {
     stopAudio();
@@ -278,6 +336,15 @@ export default function VoiceAgentButton() {
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="absolute w-full h-full rounded-full border-2 border-blue-400 animate-ping" />
               <div className="absolute w-[110%] h-[110%] rounded-full border border-blue-400 animate-pulse" />
+            </div>
+          )}
+          
+          {/* Manual disable indicator */}
+          {isMicManuallyDisabled && hasPermission && (
+            <div className="absolute -bottom-1 -right-1">
+              <div className="w-4 h-4 bg-gray-500 rounded-full flex items-center justify-center">
+                <MicOff className="w-3 h-3 text-white" />
+              </div>
             </div>
           )}
         </motion.button>
@@ -372,6 +439,9 @@ export default function VoiceAgentButton() {
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"} animate-pulse`} />
                   <h3 className="font-semibold">AI Voice Assistant</h3>
+                  {isMicManuallyDisabled && (
+                    <span className="text-xs bg-gray-700 px-2 py-0.5 rounded-full">Mic Off</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -419,7 +489,9 @@ export default function VoiceAgentButton() {
                   </div>
                   <p className="text-sm font-medium">Ready to Help You!</p>
                   <p className="text-xs mt-2">
-                    Click the mic button below to start speaking
+                    {isMicManuallyDisabled 
+                      ? "Click the mic button to start speaking"
+                      : "I'm listening! Just start speaking..."}
                   </p>
                 </div>
               )}
@@ -464,7 +536,7 @@ export default function VoiceAgentButton() {
                 </motion.div>
               )}
 
-              {isListening && (
+              {isListening && !isProcessing && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -530,6 +602,8 @@ export default function VoiceAgentButton() {
                   className={`p-2 rounded-full transition ${
                     isListening
                       ? "bg-red-500 text-white animate-pulse"
+                      : isMicManuallyDisabled
+                      ? "bg-gray-400 dark:bg-gray-600 hover:bg-gray-500"
                       : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                   title={isListening ? "Stop recording" : "Start recording"}
@@ -552,7 +626,13 @@ export default function VoiceAgentButton() {
                 {isConnected
                   ? !hasPermission
                     ? "Click mic to enable microphone"
-                    : "Click mic to speak, or type your message"
+                    : isMicManuallyDisabled
+                    ? "Mic is off. Click mic to start speaking"
+                    : isListening
+                    ? "I'm listening... Speak now!"
+                    : isProcessing
+                    ? "Agent is responding..."
+                    : "Mic is on. Click mic to pause listening"
                   : "Connecting to voice agent..."}
               </p>
             </form>
