@@ -9,6 +9,7 @@ export function useSpeechRecognition() {
   const [hasPermission, setHasPermission] = useState(null); // null = unknown, true = granted, false = denied
   
   const recognitionRef = useRef(null);
+  const isStoppingRef = useRef(false);
 
   // Check microphone permission status on mount
   useEffect(() => {
@@ -34,6 +35,17 @@ export function useSpeechRecognition() {
     };
     
     checkPermission();
+
+    // Cleanup function for when component unmounts
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (err) {
+          console.error('Error aborting recognition:', err);
+        }
+      }
+    };
   }, []);
 
   const requestPermission = useCallback(async () => {
@@ -112,7 +124,15 @@ export function useSpeechRecognition() {
     };
     
     recognition.onerror = (event) => {
+      // Check for intentional abort first - don't log as error
+      if ((isStoppingRef.current || event.error === 'aborted') && event.error === 'aborted') {
+        console.log('Speech recognition stopped normally');
+        setError(null);
+        return;
+      }
+      
       console.error('Speech recognition error:', event.error);
+      
       let errorMessage = 'Failed to recognize speech';
       
       switch(event.error) {
@@ -147,8 +167,13 @@ export function useSpeechRecognition() {
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
+      isStoppingRef.current = true;
       recognitionRef.current.stop();
       setIsListening(false);
+      // Reset the flag after a brief delay
+      setTimeout(() => {
+        isStoppingRef.current = false;
+      }, 100);
     }
   }, []);
 
