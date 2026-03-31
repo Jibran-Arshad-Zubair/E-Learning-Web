@@ -206,13 +206,18 @@ export function VoiceAgentProvider({ children }) {
         console.log('With website context:', typeof websiteContext === 'string' ? websiteContext.substring(0, 200) : JSON.stringify(websiteContext).substring(0, 200));
       }
 
-      // Send to WebSocket with website context
+      // Send to WebSocket with website context.
+      // onTextReceived fires the moment the server's text frame arrives (before 'done' and
+      // before audio playback), so navigation triggers immediately — not after speech ends.
       const result = await wsRef.current.send(
         message,
         updatedHistory,
         extractedData,
         onAudioChunk,
-        websiteContext
+        websiteContext,
+        (textData) => {
+          if (textData.navigate_to) handleNavigation(textData.navigate_to);
+        }
       );
 
       console.log('Received result:', {
@@ -247,11 +252,6 @@ export function VoiceAgentProvider({ children }) {
         console.warn('No audio blob received or empty audio');
       }
 
-      // Navigate after audio so the acknowledgement is heard first
-      if (result.navigate_to) {
-        handleNavigation(result.navigate_to);
-      }
-
       setIsProcessing(false);
       return result;
     } catch (err) {
@@ -265,7 +265,7 @@ export function VoiceAgentProvider({ children }) {
       setIsProcessing(false);
       return null;
     }
-  }, [conversationHistory, extractedData, initializeWebSocket, playAudioBlob]);
+  }, [conversationHistory, extractedData, initializeWebSocket, playAudioBlob, handleNavigation]);
 
   // Reset conversation
   const resetConversation = useCallback(() => {
