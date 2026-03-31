@@ -11,12 +11,8 @@ import {
   Trash2,
   Send,
   Minimize2,
-  Maximize2,
   Pause,
-  Play,
   Volume,
-  Volume1,
-  VolumeX as MuteIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useVoiceAgent } from "../../context/VoiceAgentContext";
@@ -29,8 +25,8 @@ export default function VoiceAgentButton() {
   const [isMuted, setIsMuted] = useState(false);
   const [inputText, setInputText] = useState("");
   const [welcomePlayed, setWelcomePlayed] = useState(false);
-  const [microphonePermission, setMicrophonePermission] = useState(null);
-  const [avatarState, setAvatarState] = useState("idle"); // idle, speaking, listening, processing
+  const [showPermissionDialog, setShowPermissionDialog] = useState(false);
+  const [avatarState, setAvatarState] = useState("idle");
   const [showAvatarControls, setShowAvatarControls] = useState(false);
   
   const { getWebsiteContext, formatContextForAgent } = useWebsiteContext();
@@ -66,7 +62,6 @@ export default function VoiceAgentButton() {
       setAvatarState("listening");
     } else if (conversationHistory.length > 0 && 
                conversationHistory[conversationHistory.length - 1]?.role === "assistant") {
-      // Simulate speaking state for 2 seconds when new assistant message arrives
       setAvatarState("speaking");
       const timer = setTimeout(() => {
         if (avatarState === "speaking") {
@@ -79,49 +74,53 @@ export default function VoiceAgentButton() {
     }
   }, [isProcessing, isListening, conversationHistory]);
 
-  // Auto-start welcome message and microphone permission flow
+  // Auto-start welcome message flow
   useEffect(() => {
     const initWelcomeFlow = async () => {
-      // Check if welcome message has been played in this session
       const hasPlayedWelcome = sessionStorage.getItem("welcome_played");
       
       if (!hasPlayedWelcome && isConnected && !welcomePlayed) {
         setWelcomePlayed(true);
         sessionStorage.setItem("welcome_played", "true");
         
-        // Get website context and send welcome message
+        // Send short welcome message
         const context = getWebsiteContext();
         const formattedContext = formatContextForAgent(context);
         
-        // Send welcome message to agent
-        const welcomeMessage = "Welcome to the website";
+        // Short and sweet welcome message
+        const welcomeMessage = "Welcome to E-Learning Hub! How can I help you today?";
         await sendMessage(welcomeMessage, formattedContext);
         
-        // After welcome message plays, request microphone permission
+        // Show permission dialog after welcome
         setTimeout(() => {
           if (!hasPermission) {
-            requestMicrophonePermission();
+            setShowPermissionDialog(true);
           } else {
-            setMicrophonePermission(true);
-            startListening();
+            setMicrophoneEnabled(true);
           }
-        }, 3000);
+        }, 2000);
       }
     };
     
     initWelcomeFlow();
-  }, [isConnected, welcomePlayed, sendMessage, getWebsiteContext, formatContextForAgent, hasPermission, startListening]);
+  }, [isConnected, welcomePlayed, sendMessage, getWebsiteContext, formatContextForAgent, hasPermission]);
 
-  const requestMicrophonePermission = useCallback(async () => {
+  const enableMicrophone = useCallback(async () => {
+    setShowPermissionDialog(false);
     try {
-      await requestPermission();
-      setMicrophonePermission(true);
-      startListening();
+      const granted = await requestPermission();
+      if (granted) {
+        startListening();
+      }
     } catch (err) {
-      setMicrophonePermission(false);
-      console.error("Microphone permission denied:", err);
+      console.error("Microphone permission error:", err);
     }
   }, [requestPermission, startListening]);
+
+  const cancelMicrophone = useCallback(() => {
+    setShowPermissionDialog(false);
+    // Don't start listening, user can manually click mic button later
+  }, []);
 
   // Auto-send when transcript is finalized
   useEffect(() => {
@@ -158,12 +157,12 @@ export default function VoiceAgentButton() {
       stopListening();
     } else {
       if (!hasPermission) {
-        await requestMicrophonePermission();
+        setShowPermissionDialog(true);
       } else {
         startListening();
       }
     }
-  }, [isListening, stopListening, startListening, hasPermission, requestMicrophonePermission]);
+  }, [isListening, stopListening, startListening, hasPermission]);
 
   const handleTextSubmit = useCallback(
     async (e) => {
@@ -172,7 +171,6 @@ export default function VoiceAgentButton() {
         const text = inputText.trim();
         setInputText("");
 
-        // Always send with website context
         const context = getWebsiteContext();
         const formattedContext = formatContextForAgent(context);
 
@@ -312,6 +310,53 @@ export default function VoiceAgentButton() {
         </AnimatePresence>
       </motion.div>
 
+      {/* Permission Dialog Modal */}
+      <AnimatePresence>
+        {showPermissionDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => cancelMicrophone()}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-sm mx-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
+                  <Mic className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Enable Microphone
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  To speak with our AI assistant, please allow microphone access. Your privacy is important to us.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={cancelMicrophone}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={enableMicrophone}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 transition"
+                  >
+                    Allow
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Chat Modal */}
       <AnimatePresence>
         {isOpen && !isCollapsed && (
@@ -334,7 +379,7 @@ export default function VoiceAgentButton() {
                     className="p-1 hover:bg-white/20 rounded transition"
                     title={isMuted ? "Unmute" : "Mute"}
                   >
-                    {isMuted ? <MuteIcon className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                   </button>
                   <button
                     onClick={handleReset}
@@ -372,20 +417,10 @@ export default function VoiceAgentButton() {
                     <div className={`absolute inset-0 rounded-full ${getAvatarStyles()} opacity-50`} />
                     {getAvatarIcon()}
                   </div>
-                  <p className="text-sm font-medium">Welcome to E-Learning Hub!</p>
+                  <p className="text-sm font-medium">Ready to Help You!</p>
                   <p className="text-xs mt-2">
-                    {microphonePermission === false 
-                      ? "Please allow microphone access to speak with me"
-                      : "Click the mic to start speaking or type your message"}
+                    Click the mic button below to start speaking
                   </p>
-                  {microphonePermission === false && (
-                    <button
-                      onClick={requestMicrophonePermission}
-                      className="mt-3 px-4 py-2 bg-purple-600 text-white text-sm rounded-full hover:bg-purple-700 transition"
-                    >
-                      Enable Microphone
-                    </button>
-                  )}
                 </div>
               )}
 
@@ -515,8 +550,8 @@ export default function VoiceAgentButton() {
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
                 {isConnected
-                  ? microphonePermission === false
-                    ? "Please enable microphone to speak"
+                  ? !hasPermission
+                    ? "Click mic to enable microphone"
                     : "Click mic to speak, or type your message"
                   : "Connecting to voice agent..."}
               </p>
