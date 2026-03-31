@@ -2,7 +2,15 @@
 'use client'
 
 import { createContext, useContext, useRef, useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { createAgentWebSocket } from '../../lib/api';
+
+// Routes defined in /app directory — update if new pages are added
+const VALID_ROUTES = new Set([
+  '/', '/about', '/cart', '/chat', '/contact',
+  '/courses', '/dashboard', '/login', '/profile', '/signup',
+]);
 
 const VoiceAgentContext = createContext();
 
@@ -15,11 +23,28 @@ export function VoiceAgentProvider({ children }) {
   const [showDoctors, setShowDoctors] = useState(false);
   const [error, setError] = useState(null);
   
+  const router = useRouter();
   const wsRef = useRef(null);
   const audioQueueRef = useRef([]);
   const isPlayingRef = useRef(false);
   const currentAudioRef = useRef(null);
   const audioContextRef = useRef(null);
+  const lastNavigationRef = useRef({ route: null, time: 0 });
+
+  // Handle navigation action from agent response
+  const handleNavigation = useCallback((route) => {
+    if (!route) return;
+    const now = Date.now();
+    const last = lastNavigationRef.current;
+    if (last.route === route && now - last.time < 2000) return; // debounce duplicates
+    lastNavigationRef.current = { route, time: now };
+
+    if (VALID_ROUTES.has(route)) {
+      router.push(route);
+    } else {
+      toast.error(`Sorry, I couldn't find the "${route}" page.`);
+    }
+  }, [router]);
 
   // Initialize WebSocket connection
   const initializeWebSocket = useCallback(() => {
@@ -222,9 +247,19 @@ export function VoiceAgentProvider({ children }) {
         console.warn('No audio blob received or empty audio');
       }
 
+      // Navigate after audio so the acknowledgement is heard first
+      if (result.navigate_to) {
+        handleNavigation(result.navigate_to);
+      }
+
       setIsProcessing(false);
       return result;
     } catch (err) {
+      if (err.message === 'AbortError') {
+        // This request was superseded by a newer one — not an error worth surfacing
+        setIsProcessing(false);
+        return null;
+      }
       console.error('Send message error:', err);
       setError(err.message || 'Failed to get agent response');
       setIsProcessing(false);
