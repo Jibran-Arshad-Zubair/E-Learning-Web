@@ -124,13 +124,13 @@ export function useSpeechRecognition() {
     };
     
     recognition.onerror = (event) => {
-      // Check for intentional abort first - don't log as error
-      if ((isStoppingRef.current || event.error === 'aborted') && event.error === 'aborted') {
-        console.log('Speech recognition stopped normally');
+      // Silently ignore non-errors: intentional abort or no speech detected
+      if (event.error === 'aborted' || event.error === 'no-speech') {
         setError(null);
+        setIsListening(false);
         return;
       }
-      
+
       console.error('Speech recognition error:', event.error);
       
       let errorMessage = 'Failed to recognize speech';
@@ -139,9 +139,6 @@ export function useSpeechRecognition() {
         case 'not-allowed':
           errorMessage = 'Microphone access denied. Please allow microphone access.';
           setHasPermission(false);
-          break;
-        case 'no-speech':
-          errorMessage = 'No speech detected. Please try again.';
           break;
         case 'audio-capture':
           errorMessage = 'No microphone found. Please connect a microphone.';
