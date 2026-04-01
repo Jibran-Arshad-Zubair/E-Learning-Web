@@ -44,6 +44,7 @@ export default function VoiceAgentButton() {
   const {
     isConnected,
     isProcessing,
+    isPlayingAudio,
     conversationHistory,
     error: agentError,
     sendMessage,
@@ -156,15 +157,13 @@ export default function VoiceAgentButton() {
     setIsMicManuallyDisabled(true);
   }, []);
 
-  // Handle interruption - stop audio and start listening when user speaks
+  // Start listening as soon as audio playback begins so the first detected word
+  // triggers stopAudio() immediately — before the full utterance is recognised.
   useEffect(() => {
-    if (isListening && isProcessingRef.current) {
-      // User started speaking while agent was processing - INTERRUPT!
-      console.log("Interruption detected! Stopping agent response...");
-      stopAudio(); // Stop current audio playback
-      // The agent will automatically stop processing when it receives the new message
+    if (isPlayingAudio && !isListening && hasPermission && !isMicManuallyDisabled) {
+      startListening(stopAudio);
     }
-  }, [isListening, stopAudio]);
+  }, [isPlayingAudio, isListening, hasPermission, isMicManuallyDisabled, startListening, stopAudio]);
 
   // Auto-send when transcript is finalized
   useEffect(() => {

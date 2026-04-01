@@ -75,7 +75,7 @@ export function useSpeechRecognition() {
     }
   }, []);
 
-  const startListening = useCallback(async () => {
+  const startListening = useCallback(async (onSpeechStart) => {
     // Check if browser supports speech recognition
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       setError('Your browser does not support speech recognition. Please type your message instead.');
@@ -110,12 +110,24 @@ export function useSpeechRecognition() {
       setError(null);
       setTranscript('');
     };
-    
+
+    // onspeechstart fires on any audio energy including background noise, so it
+    // is not used. Instead, onSpeechStart is called from the first onresult event,
+    // which only fires when the engine has actually recognised words.
+    let speechStartFired = false;
+
     recognition.onresult = (event) => {
+      // Fire the callback on the very first recognised word (interim results are
+      // enabled, so this fires as early as possible while still requiring real speech).
+      if (!speechStartFired) {
+        speechStartFired = true;
+        onSpeechStart?.();
+      }
+
       const current = event.resultIndex;
       const transcriptText = event.results[current][0].transcript;
       setTranscript(transcriptText);
-      
+
       // If final result, auto-stop
       if (event.results[current].isFinal) {
         setIsListening(false);

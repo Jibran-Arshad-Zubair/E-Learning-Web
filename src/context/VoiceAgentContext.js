@@ -17,6 +17,7 @@ const VoiceAgentContext = createContext();
 export function VoiceAgentProvider({ children }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [conversationHistory, setConversationHistory] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -262,7 +263,9 @@ export function VoiceAgentProvider({ children }) {
       // Play audio if available
       if (result.audioBlob && result.audioBlob.size > 0) {
         console.log('Playing audio response...');
+        setIsPlayingAudio(true);
         await playAudioBlob(result.audioBlob);
+        setIsPlayingAudio(false);
       } else {
         console.warn('No audio blob received or empty audio');
       }
@@ -300,6 +303,7 @@ export function VoiceAgentProvider({ children }) {
   const value = {
     isConnected,
     isProcessing,
+    isPlayingAudio,
     conversationHistory,
     extractedData,
     appointmentData,
