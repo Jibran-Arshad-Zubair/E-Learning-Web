@@ -28,7 +28,12 @@ export default function VoiceAgentButton() {
   const [showPermissionDialog, setShowPermissionDialog] = useState(false);
   const [avatarState, setAvatarState] = useState("idle");
   const [showAvatarControls, setShowAvatarControls] = useState(false);
-  const [isMicManuallyDisabled, setIsMicManuallyDisabled] = useState(false);
+  const [isMicManuallyDisabled, setIsMicManuallyDisabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mic_manually_disabled') === 'true';
+    }
+    return false;
+  });
   
   const { getWebsiteContext, formatContextForAgent } = useWebsiteContext();
   const messagesEndRef = useRef(null);
@@ -56,6 +61,11 @@ export default function VoiceAgentButton() {
     hasPermission,
     requestPermission,
   } = useSpeechRecognition();
+
+  // Persist mic disabled state across page refreshes
+  useEffect(() => {
+    localStorage.setItem('mic_manually_disabled', isMicManuallyDisabled);
+  }, [isMicManuallyDisabled]);
 
   // Track processing state with ref
   useEffect(() => {
@@ -251,6 +261,7 @@ export default function VoiceAgentButton() {
   const handleReset = useCallback(() => {
     resetConversation();
     resetTranscript();
+    localStorage.removeItem('mic_manually_disabled');
     setIsMicManuallyDisabled(false);
     if (hasPermission && !isListening) {
       startListening();

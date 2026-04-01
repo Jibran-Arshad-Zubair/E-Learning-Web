@@ -17,7 +17,17 @@ const VoiceAgentContext = createContext();
 export function VoiceAgentProvider({ children }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [conversationHistory, setConversationHistory] = useState([]);
+  const [conversationHistory, setConversationHistory] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('voice_agent_history');
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const [extractedData, setExtractedData] = useState({});
   const [appointmentData, setAppointmentData] = useState(null);
   const [showDoctors, setShowDoctors] = useState(false);
@@ -64,6 +74,11 @@ export function VoiceAgentProvider({ children }) {
       console.error('WebSocket connection error:', err);
     });
   }, []);
+
+  // Persist conversation history across page refreshes
+  useEffect(() => {
+    localStorage.setItem('voice_agent_history', JSON.stringify(conversationHistory));
+  }, [conversationHistory]);
 
   // Auto-connect on mount and handle reconnection
   useEffect(() => {
@@ -269,6 +284,7 @@ export function VoiceAgentProvider({ children }) {
 
   // Reset conversation
   const resetConversation = useCallback(() => {
+    localStorage.removeItem('voice_agent_history');
     setConversationHistory([]);
     setExtractedData({});
     setAppointmentData(null);
