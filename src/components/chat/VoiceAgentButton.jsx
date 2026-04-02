@@ -39,6 +39,7 @@ export default function VoiceAgentButton() {
   const messagesEndRef = useRef(null);
   const avatarRef = useRef(null);
   const isProcessingRef = useRef(false);
+  const isListeningRef = useRef(false);
   const shouldRestartListeningRef = useRef(false);
 
   const {
@@ -68,45 +69,51 @@ export default function VoiceAgentButton() {
     localStorage.setItem('mic_manually_disabled', isMicManuallyDisabled);
   }, [isMicManuallyDisabled]);
 
-  // Track processing state with ref
+  // Track processing and listening state with refs (for use inside timer callbacks)
   useEffect(() => {
     isProcessingRef.current = isProcessing;
   }, [isProcessing]);
 
-  // Update avatar state based on agent status
   useEffect(() => {
-    if (isProcessing) {
-      setAvatarState("processing");
-    } else if (isListening) {
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  // Update avatar state based on agent status.
+  // Priority: listening (mic active) > speaking (audio playing) > processing (thinking) > idle
+  useEffect(() => {
+    if (isListening) {
       setAvatarState("listening");
-    } else if (conversationHistory.length > 0 && 
-               conversationHistory[conversationHistory.length - 1]?.role === "assistant") {
+    } else if (isPlayingAudio) {
       setAvatarState("speaking");
-      const timer = setTimeout(() => {
-        if (avatarState === "speaking" && !isProcessing && !isListening) {
-          setAvatarState("idle");
-        }
-      }, 2000);
-      return () => clearTimeout(timer);
+    } else if (isProcessing) {
+      setAvatarState("processing");
     } else {
       setAvatarState("idle");
     }
-  }, [isProcessing, isListening, conversationHistory]);
+  }, [isProcessing, isListening, isPlayingAudio]);
 
-  // Auto-restart listening after agent finishes responding
+  // Stop listening as soon as the thinking phase starts (isProcessing=true).
+  // This ensures the mic is always off while the agent is computing a response.
   useEffect(() => {
-    // If not processing, not listening, has permission, and mic not manually disabled
-    if (!isProcessing && !isListening && hasPermission && !isMicManuallyDisabled && welcomePlayed) {
-      // Small delay to ensure everything is settled
+    if (isProcessing && isListening) {
+      stopListening();
+    }
+  }, [isProcessing, isListening, stopListening]);
+
+  // Auto-restart listening after the agent finishes speaking (idle phase only).
+  // Effect 2 below handles the mic during audio playback; this effect handles idle.
+  useEffect(() => {
+    if (!isProcessing && !isPlayingAudio && !isListening && hasPermission && !isMicManuallyDisabled && welcomePlayed) {
       const timer = setTimeout(() => {
-        if (!isProcessingRef.current && !isListening && hasPermission && !isMicManuallyDisabled) {
+        // Use refs so the callback reads fresh values, not the stale closure snapshot
+        if (!isProcessingRef.current && !isListeningRef.current && hasPermission && !isMicManuallyDisabled) {
           console.log("Auto-restarting listening...");
           startListening();
         }
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [isProcessing, isListening, hasPermission, isMicManuallyDisabled, welcomePlayed, startListening]);
+  }, [isProcessing, isPlayingAudio, isListening, hasPermission, isMicManuallyDisabled, welcomePlayed, startListening]);
 
   // Auto-start welcome message flow
   useEffect(() => {

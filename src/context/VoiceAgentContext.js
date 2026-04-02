@@ -260,17 +260,22 @@ export function VoiceAgentProvider({ children }) {
         setExtractedData({});
       }
 
+      // Thinking phase is done — transition to speaking phase
+      setIsProcessing(false);
+
       // Play audio if available
       if (result.audioBlob && result.audioBlob.size > 0) {
         console.log('Playing audio response...');
         setIsPlayingAudio(true);
-        await playAudioBlob(result.audioBlob);
-        setIsPlayingAudio(false);
+        try {
+          await playAudioBlob(result.audioBlob);
+        } finally {
+          setIsPlayingAudio(false);
+        }
       } else {
         console.warn('No audio blob received or empty audio');
       }
 
-      setIsProcessing(false);
       return result;
     } catch (err) {
       if (err.message === 'AbortError') {
