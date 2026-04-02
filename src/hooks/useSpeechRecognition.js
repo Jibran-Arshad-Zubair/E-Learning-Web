@@ -50,8 +50,17 @@ export function useSpeechRecognition() {
 
   const requestPermission = useCallback(async () => {
     try {
-      // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Request microphone permission with AEC so the browser configures the
+      // audio pipeline for echo cancellation from the start.  Subsequent
+      // captures from the same device (including Web Speech API's internal
+      // stream) inherit the hardware AEC state in most Chromium builds.
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       
       // Stop all tracks immediately after getting permission
       stream.getTracks().forEach(track => track.stop());

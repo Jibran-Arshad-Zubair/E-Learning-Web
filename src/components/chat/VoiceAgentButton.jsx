@@ -17,7 +17,33 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useVoiceAgent } from "../../context/VoiceAgentContext";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
+import { useAudioEnergyVAD } from "../../hooks/useAudioEnergyVAD";
 import { useWebsiteContext } from "../../hooks/useWebsiteContext";
+
+// ---------------------------------------------------------------------------
+// Echo detection — pure function, no React deps needed.
+// Returns true when `transcript` is likely the agent's own TTS audio picked up
+// by the microphone (echo) rather than genuine user speech.
+//
+// Two signals used together:
+//   1. Direct substring: transcript appears verbatim inside what the agent just said.
+//   2. Word-overlap ratio: ≥65 % of the transcript words exist in the TTS text.
+//      Only applied when transcript is ≥ 3 words (single/double words are ambiguous).
+// ---------------------------------------------------------------------------
+function isEchoTranscript(transcript, ttsText) {
+  if (!transcript || !ttsText) return false;
+  const t   = transcript.toLowerCase().trim();
+  const tts = ttsText.toLowerCase();
+  if (t.length < 4) return false; // too short to judge
+
+  if (tts.includes(t)) return true; // verbatim echo
+
+  const tWords   = t.split(/\s+/).filter(w => w.length > 2);
+  if (tWords.length < 3) return false; // not enough words for reliable overlap check
+  const ttsWords = new Set(tts.split(/\s+/));
+  const overlap  = tWords.filter(w => ttsWords.has(w)).length;
+  return overlap / tWords.length >= 0.65;
+}
 
 export default function VoiceAgentButton() {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,6 +68,8 @@ export default function VoiceAgentButton() {
   const isListeningRef = useRef(false);
   const shouldRestartListeningRef = useRef(false);
   const avatarDebounceRef = useRef(null);
+  // Timestamp (ms) of the last moment TTS audio finished — used by the echo guard
+  const audioEndTimeRef = useRef(0);
 
   const {
     isConnected,
@@ -52,6 +80,7 @@ export default function VoiceAgentButton() {
     sendMessage,
     stopAudio,
     resetConversation,
+    lastTtsText,
   } = useVoiceAgent();
 
   const {
@@ -64,6 +93,13 @@ export default function VoiceAgentButton() {
     hasPermission,
     requestPermission,
   } = useSpeechRecognition();
+
+  const { startVAD, stopVAD, isVADActive } = useAudioEnergyVAD();
+
+  // Stable ref so the VAD callback always calls the latest startListening
+  // without the closure going stale when hasPermission changes.
+  const startListeningRef = useRef(startListening);
+  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
 
   // Persist mic disabled state across page refreshes
   useEffect(() => {
@@ -79,10 +115,9 @@ export default function VoiceAgentButton() {
     isListeningRef.current = isListening;
   }, [isListening]);
 
-  // Derived: mic is "logically active" whenever it's actually listening OR when audio is
-  // playing and the mic is expected to restart (covers the brief gap between no-speech
-  // timeout and the next recognition session starting — the main source of flickering).
-  const micIsActive = isListening || (isPlayingAudio && hasPermission === true && !isMicManuallyDisabled);
+  // Derived: mic is "logically active" when Web Speech is running OR when the
+  // energy VAD is running (during TTS playback, waiting for a real interruption).
+  const micIsActive = isListening || isVADActive;
 
   // Update raw avatar state based on agent status.
   // Priority: mic active (listening) > audio playing (speaking) > thinking (processing) > idle
@@ -111,13 +146,21 @@ export default function VoiceAgentButton() {
     return () => clearTimeout(avatarDebounceRef.current);
   }, [avatarState]);
 
-  // Stop listening as soon as the thinking phase starts (isProcessing=true).
-  // This ensures the mic is always off while the agent is computing a response.
+  // Record the exact moment TTS audio finishes so the echo guard has a reference point.
   useEffect(() => {
-    if (isProcessing && isListening) {
-      stopListening();
+    if (!isPlayingAudio) {
+      audioEndTimeRef.current = Date.now();
     }
-  }, [isProcessing, isListening, stopListening]);
+  }, [isPlayingAudio]);
+
+  // Stop all audio input (STT + VAD) as soon as the thinking phase starts.
+  // Neither should run while the agent is computing a response.
+  useEffect(() => {
+    if (isProcessing) {
+      if (isListening) stopListening();
+      stopVAD();
+    }
+  }, [isProcessing, isListening, stopListening, stopVAD]);
 
   // Auto-restart listening after the agent finishes speaking (idle phase only).
   // Effect 2 below handles the mic during audio playback; this effect handles idle.
@@ -183,36 +226,66 @@ export default function VoiceAgentButton() {
     setIsMicManuallyDisabled(true);
   }, []);
 
-  // Start listening as soon as audio playback begins so the first detected word
-  // triggers stopAudio() immediately — before the full utterance is recognised.
-  // The 200ms cooldown prevents the rapid-restart loop (no-speech timeout → immediate
-  // restart → no-speech timeout) from causing visible icon flicker. Re-checking
-  // isListeningRef inside the callback avoids a stale-closure double-start.
+  // During TTS playback, run the energy VAD instead of Web Speech API.
+  //
+  // Why this fixes the echo loop:
+  //   - Web Speech API is completely OFF while TTS plays → it cannot transcribe
+  //     the agent's own voice, no matter what words are spoken.
+  //   - The VAD stream uses echoCancellation:true → the browser's hardware AEC
+  //     subtracts the TTS speaker output from the mic signal before we see it.
+  //     Only genuine human speech registers above RMS_THRESHOLD.
+  //   - When real user speech is detected → stop TTS, hand off to Web Speech API.
+  //
+  // The 350 ms startup delay lets the first audio frame reach the speakers and
+  // the AEC reference path stabilise before we start measuring energy.
   useEffect(() => {
-    if (isPlayingAudio && !isListening && hasPermission && !isMicManuallyDisabled) {
+    if (isPlayingAudio && hasPermission && !isMicManuallyDisabled) {
       const timer = setTimeout(() => {
-        if (!isListeningRef.current) {
-          startListening(stopAudio);
-        }
-      }, 200);
-      return () => clearTimeout(timer);
+        startVAD(() => {
+          // Confirmed human speech energy during TTS — interrupt the agent
+          stopAudio();
+          stopVAD();
+          // 150 ms gap so AudioContext teardown doesn't collide with the new
+          // getUserMedia call inside startListening
+          setTimeout(() => startListeningRef.current(), 150);
+        });
+      }, 350);
+      return () => {
+        clearTimeout(timer);
+        stopVAD();
+      };
+    } else {
+      stopVAD();
     }
-  }, [isPlayingAudio, isListening, hasPermission, isMicManuallyDisabled, startListening, stopAudio]);
+  }, [isPlayingAudio, hasPermission, isMicManuallyDisabled, startVAD, stopVAD, stopAudio]);
 
   // Auto-send when transcript is finalized
   useEffect(() => {
     const sendWithContext = async (message) => {
       if (message && message.trim()) {
+        // --- Echo guard ---
+        // Discard transcripts that closely match the agent's own TTS text.
+        // Two conditions must both be true: the timing must be within the echo
+        // danger window (audio is still playing OR ended <1 500 ms ago) AND the
+        // words must overlap significantly with what the agent just said.
+        const msSinceAudioEnd = Date.now() - audioEndTimeRef.current;
+        const inEchoWindow = isPlayingAudio || msSinceAudioEnd < 1500;
+        if (inEchoWindow && isEchoTranscript(message, lastTtsText.current)) {
+          console.log('[EchoGuard] Discarding echo transcript:', message);
+          resetTranscript();
+          return;
+        }
+
         // Stop listening while sending
         if (isListening) {
           stopListening();
         }
-        
+
         const context = getWebsiteContext();
         const formattedContext = formatContextForAgent(context);
         await sendMessage(message, formattedContext);
         resetTranscript();
-        
+
         // Don't restart listening here - it will auto-restart after processing completes
       }
     };
@@ -223,6 +296,8 @@ export default function VoiceAgentButton() {
   }, [
     transcript,
     isListening,
+    isPlayingAudio,
+    lastTtsText,
     sendMessage,
     resetTranscript,
     getWebsiteContext,
@@ -240,9 +315,10 @@ export default function VoiceAgentButton() {
   }, [conversationHistory, scrollToBottom]);
 
   const handleMicClick = useCallback(async () => {
-    if (isListening) {
-      // Manually stop listening
+    if (isListening || isVADActive) {
+      // Manually stop all audio input
       stopListening();
+      stopVAD();
       setIsMicManuallyDisabled(true);
     } else {
       // Manually start listening
@@ -253,7 +329,7 @@ export default function VoiceAgentButton() {
         startListening();
       }
     }
-  }, [isListening, stopListening, startListening, hasPermission]);
+  }, [isListening, isVADActive, stopListening, stopVAD, startListening, hasPermission]);
 
   const handleTextSubmit = useCallback(
     async (e) => {
@@ -292,6 +368,7 @@ export default function VoiceAgentButton() {
   }, [isMuted, stopAudio]);
 
   const handleReset = useCallback(() => {
+    stopVAD();
     resetConversation();
     resetTranscript();
     localStorage.removeItem('mic_manually_disabled');
@@ -299,7 +376,7 @@ export default function VoiceAgentButton() {
     if (hasPermission && !isListening) {
       startListening();
     }
-  }, [resetConversation, resetTranscript, hasPermission, isListening, startListening]);
+  }, [stopVAD, resetConversation, resetTranscript, hasPermission, isListening, startListening]);
 
   const handlePausePlay = useCallback(() => {
     stopAudio();
