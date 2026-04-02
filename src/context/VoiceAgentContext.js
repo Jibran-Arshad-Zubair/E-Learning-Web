@@ -41,8 +41,6 @@ export function VoiceAgentProvider({ children }) {
   const currentAudioRef = useRef(null);
   const audioContextRef = useRef(null);
   const lastNavigationRef = useRef({ route: null, time: 0 });
-  // Tracks the most recently spoken TTS text so the frontend can detect echo
-  const lastTtsTextRef = useRef('');
 
   // Handle navigation action from agent response
   const handleNavigation = useCallback((route) => {
@@ -247,7 +245,6 @@ export function VoiceAgentProvider({ children }) {
 
       // Handle response
       if (result.response) {
-        lastTtsTextRef.current = result.response;
         setConversationHistory(prev => [...prev, { role: 'assistant', content: result.response }]);
       }
 
@@ -322,7 +319,6 @@ export function VoiceAgentProvider({ children }) {
     updateExtractedData,
     stopAudio,
     setShowDoctors,
-    lastTtsText: lastTtsTextRef,
   };
 
   return (
