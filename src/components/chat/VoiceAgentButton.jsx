@@ -41,6 +41,7 @@ export default function VoiceAgentButton() {
   const isProcessingRef = useRef(false);
   const isListeningRef = useRef(false);
   const shouldRestartListeningRef = useRef(false);
+  const avatarDebounceRef = useRef(null);
 
   const {
     isConnected,
@@ -78,19 +79,37 @@ export default function VoiceAgentButton() {
     isListeningRef.current = isListening;
   }, [isListening]);
 
-  // Update avatar state based on agent status.
-  // Priority: listening (mic active) > speaking (audio playing) > processing (thinking) > idle
+  // Derived: mic is "logically active" whenever it's actually listening OR when audio is
+  // playing and the mic is expected to restart (covers the brief gap between no-speech
+  // timeout and the next recognition session starting — the main source of flickering).
+  const micIsActive = isListening || (isPlayingAudio && hasPermission === true && !isMicManuallyDisabled);
+
+  // Update raw avatar state based on agent status.
+  // Priority: mic active (listening) > audio playing (speaking) > thinking (processing) > idle
   useEffect(() => {
-    if (isListening) {
-      setAvatarState("listening");
-    } else if (isPlayingAudio) {
-      setAvatarState("speaking");
-    } else if (isProcessing) {
-      setAvatarState("processing");
+    const next = micIsActive
+      ? "listening"
+      : isPlayingAudio
+      ? "speaking"
+      : isProcessing
+      ? "processing"
+      : "idle";
+    setAvatarState(next);
+  }, [micIsActive, isPlayingAudio, isProcessing]);
+
+  // Debounce avatar state for downward transitions (active → idle/processing) to prevent
+  // the brief "idle" flash that appears between phase boundaries (e.g. speaking → idle).
+  // Upward transitions (→ listening/speaking) are applied immediately for responsiveness.
+  const [displayAvatarState, setDisplayAvatarState] = useState("idle");
+  useEffect(() => {
+    clearTimeout(avatarDebounceRef.current);
+    if (avatarState === "listening" || avatarState === "speaking") {
+      setDisplayAvatarState(avatarState);
     } else {
-      setAvatarState("idle");
+      avatarDebounceRef.current = setTimeout(() => setDisplayAvatarState(avatarState), 200);
     }
-  }, [isProcessing, isListening, isPlayingAudio]);
+    return () => clearTimeout(avatarDebounceRef.current);
+  }, [avatarState]);
 
   // Stop listening as soon as the thinking phase starts (isProcessing=true).
   // This ensures the mic is always off while the agent is computing a response.
@@ -166,9 +185,17 @@ export default function VoiceAgentButton() {
 
   // Start listening as soon as audio playback begins so the first detected word
   // triggers stopAudio() immediately — before the full utterance is recognised.
+  // The 200ms cooldown prevents the rapid-restart loop (no-speech timeout → immediate
+  // restart → no-speech timeout) from causing visible icon flicker. Re-checking
+  // isListeningRef inside the callback avoids a stale-closure double-start.
   useEffect(() => {
     if (isPlayingAudio && !isListening && hasPermission && !isMicManuallyDisabled) {
-      startListening(stopAudio);
+      const timer = setTimeout(() => {
+        if (!isListeningRef.current) {
+          startListening(stopAudio);
+        }
+      }, 200);
+      return () => clearTimeout(timer);
     }
   }, [isPlayingAudio, isListening, hasPermission, isMicManuallyDisabled, startListening, stopAudio]);
 
@@ -288,9 +315,10 @@ export default function VoiceAgentButton() {
     setIsOpen(true);
   }, []);
 
-  // Avatar animations and styling based on state
+  // Avatar animations and styling — use the debounced displayAvatarState so
+  // brief intermediate states don't cause visible flicker between phases.
   const getAvatarStyles = () => {
-    switch (avatarState) {
+    switch (displayAvatarState) {
       case "speaking":
         return "bg-gradient-to-r from-green-500 to-emerald-500 shadow-lg shadow-green-500/50 animate-pulse";
       case "listening":
@@ -303,7 +331,7 @@ export default function VoiceAgentButton() {
   };
 
   const getAvatarIcon = () => {
-    switch (avatarState) {
+    switch (displayAvatarState) {
       case "speaking":
         return <Volume className="w-8 h-8 text-white animate-pulse" />;
       case "listening":
@@ -341,15 +369,15 @@ export default function VoiceAgentButton() {
           </div>
           
           {/* Sound waves animation for speaking state */}
-          {avatarState === "speaking" && (
+          {displayAvatarState === "speaking" && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="absolute w-full h-full rounded-full bg-green-500 animate-ping opacity-75" />
               <div className="absolute w-[90%] h-[90%] rounded-full bg-green-500 animate-pulse opacity-50" />
             </div>
           )}
-          
+
           {/* Listening rings animation */}
-          {avatarState === "listening" && (
+          {displayAvatarState === "listening" && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="absolute w-full h-full rounded-full border-2 border-blue-400 animate-ping" />
               <div className="absolute w-[110%] h-[110%] rounded-full border border-blue-400 animate-pulse" />
@@ -500,7 +528,7 @@ export default function VoiceAgentButton() {
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-800">
               {conversationHistory.length === 0 && (
                 <div className="text-center text-gray-500 dark:text-gray-400 mt-32">
-                  <div className="relative w-20 h-20 mx-auto mb-4">
+                  <div className="relative w-20 h-20 mx-auto mb-4 flex items-center justify-center">
                     <div className={`absolute inset-0 rounded-full ${getAvatarStyles()} opacity-50`} />
                     {getAvatarIcon()}
                   </div>
@@ -553,7 +581,7 @@ export default function VoiceAgentButton() {
                 </motion.div>
               )}
 
-              {isListening && !isProcessing && (
+              {micIsActive && !isProcessing && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -572,8 +600,10 @@ export default function VoiceAgentButton() {
                           style={{ animationDelay: "0.2s" }}
                         />
                       </div>
-                      <span className="text-sm">Listening...</span>
-                      {transcript && (
+                      <span className="text-sm">
+                        {isListening ? "Listening..." : "Mic ready..."}
+                      </span>
+                      {transcript && isListening && (
                         <span className="text-xs text-gray-500 max-w-[150px] truncate">
                           {transcript}
                         </span>
@@ -607,25 +637,25 @@ export default function VoiceAgentButton() {
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder={
-                    isListening ? "Listening..." : "Type your message..."
+                    micIsActive ? "Listening..." : "Type your message..."
                   }
-                  disabled={isProcessing || isListening}
+                  disabled={isProcessing || micIsActive}
                   className="flex-1 px-4 py-2 border rounded-full text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 dark:bg-gray-800 dark:border-gray-700 disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={handleMicClick}
                   disabled={isProcessing}
-                  className={`p-2 rounded-full transition ${
-                    isListening
+                  className={`p-2 rounded-full transition-colors duration-200 ${
+                    micIsActive
                       ? "bg-red-500 text-white animate-pulse"
                       : isMicManuallyDisabled
                       ? "bg-gray-400 dark:bg-gray-600 hover:bg-gray-500"
                       : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600"
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
-                  title={isListening ? "Stop recording" : "Start recording"}
+                  title={micIsActive ? "Stop recording" : "Start recording"}
                 >
-                  {isListening ? (
+                  {micIsActive ? (
                     <MicOff className="w-5 h-5" />
                   ) : (
                     <Mic className="w-5 h-5" />
@@ -645,10 +675,10 @@ export default function VoiceAgentButton() {
                     ? "Click mic to enable microphone"
                     : isMicManuallyDisabled
                     ? "Mic is off. Click mic to start speaking"
-                    : isListening
-                    ? "I'm listening... Speak now!"
                     : isProcessing
-                    ? "Agent is responding..."
+                    ? "Agent is thinking..."
+                    : micIsActive
+                    ? "I'm listening... Speak now!"
                     : "Mic is on. Click mic to pause listening"
                   : "Connecting to voice agent..."}
               </p>
