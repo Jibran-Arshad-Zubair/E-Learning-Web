@@ -44,6 +44,7 @@ export default function VoiceAgentButton() {
   const isListeningRef = useRef(false);
   const shouldRestartListeningRef = useRef(false);
   const avatarDebounceRef = useRef(null);
+  const lastSentTranscriptRef = useRef('');
 
   const {
     isConnected,
@@ -268,7 +269,13 @@ export default function VoiceAgentButton() {
     stopAudio,
   ]);
 
-  // Auto-send when transcript is finalized
+  // Auto-send when transcript is finalized.
+  // Guard: only send when this transcript text hasn't been sent yet — prevents the
+  // duplicate that occurs when sendMessage's conversationHistory dep changes and
+  // re-creates the function reference, causing this effect to re-fire while the
+  // same transcript is still in state. Using the transcript text itself (not a
+  // boolean lock) means a new, different transcript fires immediately even if the
+  // previous sendMessage is still awaiting audio playback.
   useEffect(() => {
     const sendWithContext = async (message) => {
       if (message && message.trim()) {
@@ -280,14 +287,19 @@ export default function VoiceAgentButton() {
         const context = getWebsiteContext();
         const formattedContext = formatContextForAgent(context);
         await sendMessage(message, formattedContext);
+        // Clear transcript and reset the guard so the same phrase can be sent
+        // again in a later turn if the user says it a second time.
         resetTranscript();
+        lastSentTranscriptRef.current = '';
 
         // Don't restart listening here - it will auto-restart after processing completes
       }
     };
 
-    if (transcript && !isListening && transcript.trim()) {
-      sendWithContext(transcript.trim());
+    const trimmed = transcript?.trim();
+    if (trimmed && !isListening && trimmed !== lastSentTranscriptRef.current) {
+      lastSentTranscriptRef.current = trimmed;
+      sendWithContext(trimmed);
     }
   }, [
     transcript,
