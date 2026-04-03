@@ -541,30 +541,33 @@ export default function VoiceAgentButton() {
                 </div>
               )}
 
-              {conversationHistory.map((msg, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-3 rounded-2xl ${
-                      msg.role === "user"
-                        ? "bg-purple-600 text-white rounded-br-none"
-                        : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none"
-                    }`}
+              {conversationHistory.map((msg, idx) => {
+                if (idx === 0 && msg.role === "user") return null;
+                return (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <p className="text-sm whitespace-pre-wrap break-words">
-                      {msg.content}
-                    </p>
-                    <p className="text-xs opacity-70 mt-1">
-                      {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
+                    <div
+                      className={`max-w-[80%] p-3 rounded-2xl ${
+                        msg.role === "user"
+                          ? "bg-purple-600 text-white rounded-br-none"
+                          : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-none"
+                      }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap break-words">
+                        {msg.content}
+                      </p>
+                      <p className="text-xs opacity-70 mt-1">
+                        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </motion.div>
+                );
+              })}
 
               {isProcessing && (
                 <motion.div
