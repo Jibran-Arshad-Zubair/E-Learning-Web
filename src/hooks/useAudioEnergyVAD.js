@@ -3,18 +3,32 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 // ---------------------------------------------------------------------------
-// RMS energy floor for human speech.
-// When echoCancellation:true is requested via getUserMedia, the browser asks
-// the OS/hardware AEC to subtract whatever is currently playing through the
-// speakers from the mic input.  TTS echo residual after AEC is typically well
-// below 0.015; normal conversational speech registers 0.03–0.15.
+// Three-layer gate — ALL three must pass before stopAudio() is called.
+//
+// Layer 1 — RMS energy floor
+//   Minimum signal level required before any further checks run.
+//   TTS echo residual after echoCancellation is typically < 0.015.
+//   Normal conversational speech registers 0.03–0.15.
+//   Raised from 0.018 → 0.022 to filter quiet ambient noise.
+//
+// Layer 2 — Spectral concentration (voiced-speech band)
+//   Human vowels and consonants concentrate energy in 300–3 400 Hz.
+//   Coughs, sneezes, and broadband noise spread energy across the full
+//   spectrum. A cough typically scores 0.20–0.38; voiced speech scores
+//   0.45–0.80. Only frames above VOICED_RATIO_MIN count toward the
+//   sustained counter — everything else gently decays.
+//
+// Layer 3 — Sustained duration
+//   How many consecutive rAF ticks (~60 fps) must pass layers 1 & 2
+//   before the callback fires.
+//   Old value:  6 frames ≈  100 ms  → a sharp cough easily triggers this.
+//   New value: 15 frames ≈  250 ms  → filters most cough/sneeze bursts
+//   while still feeling instant to the user (a 250 ms delay is imperceptible
+//   in natural conversation).
 // ---------------------------------------------------------------------------
-const RMS_THRESHOLD = 0.018;
-
-// How many consecutive rAF frames (~60 fps) must be above the threshold before
-// we treat it as "real speech".  6 frames ≈ 100 ms — long enough to ignore
-// transient pops / clicks from the speakers, short enough to feel instant.
-const SUSTAINED_FRAMES = 6;
+const RMS_THRESHOLD    = 0.022;   // energy floor (raised from 0.018)
+const VOICED_RATIO_MIN = 0.42;    // min speech-band energy fraction
+const SUSTAINED_FRAMES = 15;      // ~250 ms at 60 fps (raised from 6/~100 ms)
 
 export function useAudioEnergyVAD() {
   const [isVADActive, setIsVADActive] = useState(false);
@@ -55,7 +69,7 @@ export function useAudioEnergyVAD() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: true,   // ← key: OS/hardware AEC subtracts TTS output
+          echoCancellation: true,   // OS/hardware AEC subtracts TTS output from mic
           noiseSuppression: true,
           autoGainControl: true,
         },
@@ -76,29 +90,65 @@ export function useAudioEnergyVAD() {
 
       const source   = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize               = 256;   // 128 frequency bins — fast & cheap
+      analyser.fftSize               = 256;   // 128 bins — fast & cheap
       analyser.smoothingTimeConstant = 0.25;
       source.connect(analyser);
 
-      const buf = new Float32Array(analyser.frequencyBinCount);
+      const binCount = analyser.frequencyBinCount; // 128
+      const timeBuf  = new Float32Array(binCount);  // time-domain (RMS)
+      const freqBuf  = new Uint8Array(binCount);    // frequency-domain (spectral check)
+
+      // Pre-compute speech-band bin range from the actual AudioContext sample rate.
+      // Different devices report 44100 Hz or 48000 Hz; computing at runtime ensures
+      // the speech window is always correct regardless of hardware.
+      //   binHz  = sampleRate / fftSize  (Hz per bin)
+      //   sMin   = bin index for 300 Hz
+      //   sMax   = bin index for 3 400 Hz
+      const binHz = ctx.sampleRate / analyser.fftSize;
+      const sMin  = Math.max(1, Math.round(300  / binHz));
+      const sMax  = Math.min(binCount - 1, Math.round(3400 / binHz));
 
       const tick = () => {
         if (!isActiveRef.current) return;
 
-        analyser.getFloatTimeDomainData(buf);
+        // ── Layer 1: RMS energy (time domain) ────────────────────────────
+        analyser.getFloatTimeDomainData(timeBuf);
         let sum = 0;
-        for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-        const rms = Math.sqrt(sum / buf.length);
+        for (let i = 0; i < binCount; i++) sum += timeBuf[i] * timeBuf[i];
+        const rms = Math.sqrt(sum / binCount);
 
         if (rms > RMS_THRESHOLD) {
-          frameCountRef.current += 1;
-          if (frameCountRef.current >= SUSTAINED_FRAMES) {
-            // Confirmed sustained speech energy — fire once, reset counter
-            frameCountRef.current = 0;
-            callbackRef.current?.();
+          // ── Layer 2: Spectral concentration (frequency domain) ──────────
+          // getByteFrequencyData fills freqBuf with 0-255 magnitude per bin.
+          // We compare the energy sum in the speech band (sMin…sMax) against
+          // the total energy across all bins.  Broadband noise (coughs,
+          // sneezes, rustling) distributes energy evenly → low voiced ratio.
+          // Voiced speech concentrates energy below 3.4 kHz → high ratio.
+          analyser.getByteFrequencyData(freqBuf);
+          let totalEnergy = 0;
+          let speechEnergy = 0;
+          for (let i = 0; i < binCount; i++) {
+            totalEnergy += freqBuf[i];
+            if (i >= sMin && i <= sMax) speechEnergy += freqBuf[i];
+          }
+          const voicedRatio = totalEnergy > 0 ? speechEnergy / totalEnergy : 0;
+
+          if (voicedRatio >= VOICED_RATIO_MIN) {
+            // ── Layer 3: Sustained confirmation ──────────────────────────
+            // Both energy and spectral checks passed — count this frame.
+            frameCountRef.current += 1;
+            if (frameCountRef.current >= SUSTAINED_FRAMES) {
+              // Confirmed real speech — fire once then reset counter.
+              frameCountRef.current = 0;
+              callbackRef.current?.();
+            }
+          } else {
+            // Energy above floor but spectral check failed (broadband noise).
+            // Gentle decay so a single clear frame doesn't reset progress.
+            frameCountRef.current = Math.max(0, frameCountRef.current - 1);
           }
         } else {
-          // Gentle decay so a brief silence gap mid-word doesn't reset the window
+          // Below energy floor — gentle decay.
           frameCountRef.current = Math.max(0, frameCountRef.current - 1);
         }
 
