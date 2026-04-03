@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useVoiceAgent } from "../../context/VoiceAgentContext";
 import { useSpeechRecognition } from "../../hooks/useSpeechRecognition";
+import { useAudioEnergyVAD } from "../../hooks/useAudioEnergyVAD";
 import { useWebsiteContext } from "../../hooks/useWebsiteContext";
 
 export default function VoiceAgentButton() {
@@ -36,6 +37,7 @@ export default function VoiceAgentButton() {
   });
   
   const { getWebsiteContext, formatContextForAgent } = useWebsiteContext();
+  const { startVAD, stopVAD } = useAudioEnergyVAD();
   const messagesEndRef = useRef(null);
   const avatarRef = useRef(null);
   const isProcessingRef = useRef(false);
@@ -198,6 +200,18 @@ export default function VoiceAgentButton() {
       return () => clearTimeout(timer);
     }
   }, [isPlayingAudio, isListening, hasPermission, isMicManuallyDisabled, startListening, stopAudio]);
+
+  // VAD-based interruption: run energy VAD during audio playback so that even
+  // short fallback responses (~1 s) are stopped within ~100 ms of the user
+  // starting to speak — well before SpeechRecognition fires its first onresult.
+  // getUserMedia uses echoCancellation:true so the agent's own TTS output is
+  // subtracted by the browser's AEC and does not trigger the VAD.
+  useEffect(() => {
+    if (isPlayingAudio && hasPermission && !isMicManuallyDisabled) {
+      startVAD(stopAudio);
+      return () => stopVAD();
+    }
+  }, [isPlayingAudio, hasPermission, isMicManuallyDisabled, startVAD, stopVAD, stopAudio]);
 
   // Auto-send when transcript is finalized
   useEffect(() => {
