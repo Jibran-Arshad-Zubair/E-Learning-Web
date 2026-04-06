@@ -45,6 +45,7 @@ export default function VoiceAgentButton() {
   const shouldRestartListeningRef = useRef(false);
   const avatarDebounceRef = useRef(null);
   const lastSentTranscriptRef = useRef('');
+  const systemInitMessageRef = useRef(null);
 
   const {
     isConnected,
@@ -180,6 +181,7 @@ export default function VoiceAgentButton() {
         // Short and sweet welcome message
         const welcomeMessage =
           "Welcome to E-Learning Hub! How can I help you today?";
+        systemInitMessageRef.current = welcomeMessage;
         await sendMessage(welcomeMessage, formattedContext);
 
         // Show permission dialog after welcome
@@ -651,7 +653,7 @@ export default function VoiceAgentButton() {
               )}
 
               {conversationHistory.map((msg, idx) => {
-                if (idx === 0 && msg.role === "user") return null;
+                if (msg.role === "user" && msg.content === systemInitMessageRef.current) return null;
                 return (
                   <motion.div
                     key={idx}
