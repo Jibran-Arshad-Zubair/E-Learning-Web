@@ -2,6 +2,34 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 
+// Returns true when the recognised transcript is likely an echo of the agent's
+// own TTS output leaking from the speakers back into the microphone.
+// Only fires during audio playback (agentText is only passed then), so it never
+// suppresses real user utterances outside that window.
+//
+// Strategy: normalise both strings, then check whether any 3-word consecutive
+// phrase from the transcript appears verbatim in the agent text.  A 3-word
+// sequence is specific enough to be statistically unlikely in real user speech
+// yet robust to minor ASR transcription noise.
+function isLikelyEcho(transcript, agentText) {
+  if (!agentText || !transcript) return false;
+  const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+  const t = normalize(transcript);
+  const a = normalize(agentText);
+  if (t.length < 5) return false;
+  // Exact substring match (common for clear speaker output)
+  if (a.includes(t)) return true;
+  // 3-word sliding-window match (handles slight ASR drift)
+  const tWords = t.split(/\s+/);
+  if (tWords.length >= 3) {
+    for (let i = 0; i <= tWords.length - 3; i++) {
+      const phrase = tWords.slice(i, i + 3).join(' ');
+      if (a.includes(phrase)) return true;
+    }
+  }
+  return false;
+}
+
 export function useSpeechRecognition() {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
@@ -75,7 +103,7 @@ export function useSpeechRecognition() {
     }
   }, []);
 
-  const startListening = useCallback(async (onSpeechStart) => {
+  const startListening = useCallback(async (onSpeechStart, agentText = '') => {
     // Check if browser supports speech recognition
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       setError('Your browser does not support speech recognition. Please type your message instead.');
@@ -117,6 +145,18 @@ export function useSpeechRecognition() {
     let speechStartFired = false;
 
     recognition.onresult = (event) => {
+      const current = event.resultIndex;
+      const transcriptText = event.results[current][0].transcript;
+
+      // If this looks like the agent's own TTS leaking from the speakers back
+      // into the mic, abort silently.  This check only has teeth when agentText
+      // is supplied (i.e. during audio playback) — it is a no-op for all other
+      // listening sessions.
+      if (agentText && isLikelyEcho(transcriptText, agentText)) {
+        recognition.abort();
+        return;
+      }
+
       // Fire the callback on the very first recognised word (interim results are
       // enabled, so this fires as early as possible while still requiring real speech).
       if (!speechStartFired) {
@@ -124,8 +164,6 @@ export function useSpeechRecognition() {
         onSpeechStart?.();
       }
 
-      const current = event.resultIndex;
-      const transcriptText = event.results[current][0].transcript;
       setTranscript(transcriptText);
 
       // If final result, auto-stop

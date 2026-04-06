@@ -50,6 +50,7 @@ export default function VoiceAgentButton() {
     isConnected,
     isProcessing,
     isPlayingAudio,
+    currentAgentSpeech,
     conversationHistory,
     error: agentError,
     sendMessage,
@@ -236,7 +237,9 @@ export default function VoiceAgentButton() {
     ) {
       const timer = setTimeout(() => {
         if (!isListeningRef.current) {
-          startListening(stopAudio);
+          // Pass currentAgentSpeech so the recognition hook can detect and
+          // suppress echo (agent voice leaking from speakers into the mic).
+          startListening(stopAudio, currentAgentSpeech);
         }
       }, 200);
       return () => clearTimeout(timer);
@@ -248,6 +251,7 @@ export default function VoiceAgentButton() {
     isMicManuallyDisabled,
     startListening,
     stopAudio,
+    currentAgentSpeech,
   ]);
 
   // VAD-based interruption: run energy VAD during audio playback so that even

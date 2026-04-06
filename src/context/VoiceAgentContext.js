@@ -33,6 +33,7 @@ export function VoiceAgentProvider({ children }) {
   const [isConnected, setIsConnected] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [currentAgentSpeech, setCurrentAgentSpeech] = useState('');
   const gainNodeRef = useRef(null);
   const [conversationHistory, setConversationHistory] = useState(() => {
     if (typeof window !== "undefined") {
@@ -307,6 +308,7 @@ export function VoiceAgentProvider({ children }) {
             ...prev,
             { role: "assistant", content: result.response },
           ]);
+          setCurrentAgentSpeech(result.response);
         }
 
         if (result.show_doctors) {
@@ -378,6 +380,7 @@ export function VoiceAgentProvider({ children }) {
     isConnected,
     isProcessing,
     isPlayingAudio,
+    currentAgentSpeech,
     conversationHistory,
     extractedData,
     appointmentData,
