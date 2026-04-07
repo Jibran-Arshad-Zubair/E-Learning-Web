@@ -153,3 +153,19 @@
   background: rgba(239, 68, 68, 0.4);
   animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
 }
+
+/* Wave overlay animations */
+@keyframes wave-slide-fwd {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes wave-slide-rev {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes wave-slide-mid {
+  from { transform: translateX(-20%); }
+  to   { transform: translateX(-70%); }
+}

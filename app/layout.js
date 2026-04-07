@@ -5,6 +5,7 @@ import "./globals.css";
 import Providers from "./providers";
 import { VoiceAgentProvider } from "../src/context/VoiceAgentContext";
 import VoiceAgentButton from "../src/components/chat/VoiceAgentButton";
+import WaveOverlay from "../src/components/ui/WaveOverlay";
 
 const syne = Syne({
   subsets: ["latin"],
@@ -31,6 +32,7 @@ export default function RootLayout({ children }) {
         <Providers>
           <VoiceAgentProvider>
             {children}
+            <WaveOverlay />
             <VoiceAgentButton />
           </VoiceAgentProvider>
 
