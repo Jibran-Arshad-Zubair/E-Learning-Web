@@ -318,13 +318,22 @@ export default function VoiceAgentButton() {
   ]);
 
   // Scroll to bottom of messages
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = useCallback((behavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
+  // Scroll on new messages (smooth)
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottom("smooth");
   }, [conversationHistory, scrollToBottom]);
+
+  // Scroll to bottom when chat opens — wait for modal animation to finish rendering
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => scrollToBottom("instant"), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, scrollToBottom]);
 
   const handleMicClick = useCallback(async () => {
     if (isListening) {
