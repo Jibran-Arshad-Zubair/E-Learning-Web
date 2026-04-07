@@ -13,6 +13,23 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { createAgentWebSocket } from "../../lib/api";
 
+/**
+ * Strip all internal action tags from agent response text before displaying to user.
+ * The backend parses and executes these tags; the frontend must never show them.
+ */
+function stripActionTags(text) {
+  if (!text) return text;
+  return text
+    .replace(/\[SCROLL_TO].*?\[\/SCROLL_TO]/gis, '')
+    .replace(/\[NAVIGATE_TO].*?\[\/NAVIGATE_TO]/gis, '')
+    .replace(/\[APPOINTMENT_READY].*?\[\/APPOINTMENT_READY]/gis, '')
+    .replace(/\[CLEAR_DATA]/gi, '')
+    .replace(/\[SHOW_DOCTORS]/gi, '')
+    .replace(/\[\/SHOW_DOCTORS]/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Routes defined in /app directory — update if new pages are added
 const VALID_ROUTES = new Set([
   "/",
@@ -332,13 +349,14 @@ export function VoiceAgentProvider({ children }) {
           audioSize: result.audioBlob?.size,
         });
 
-        // Handle response
+        // Handle response — strip action tags before storing/displaying
         if (result.response) {
+          const cleanResponse = stripActionTags(result.response);
           setConversationHistory((prev) => [
             ...prev,
-            { role: "assistant", content: result.response },
+            { role: "assistant", content: cleanResponse },
           ]);
-          setCurrentAgentSpeech(result.response);
+          setCurrentAgentSpeech(cleanResponse);
         }
 
         if (result.show_doctors) {
