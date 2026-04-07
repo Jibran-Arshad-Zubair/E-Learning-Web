@@ -77,6 +77,35 @@ export function VoiceAgentProvider({ children }) {
     [router],
   );
 
+  // Handle scroll action from agent response
+  const handleScroll = useCallback((direction) => {
+    if (!direction || typeof window === 'undefined') return;
+    const SCROLL_AMOUNT = 500;   // px for a full scroll step
+    const SLIGHT_AMOUNT = 200;   // px for a slight scroll step
+    switch (direction) {
+      case 'down':
+        window.scrollBy({ top: SCROLL_AMOUNT, behavior: 'smooth' });
+        break;
+      case 'up':
+        window.scrollBy({ top: -SCROLL_AMOUNT, behavior: 'smooth' });
+        break;
+      case 'top':
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        break;
+      case 'bottom':
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+        break;
+      case 'slight-down':
+        window.scrollBy({ top: SLIGHT_AMOUNT, behavior: 'smooth' });
+        break;
+      case 'slight-up':
+        window.scrollBy({ top: -SLIGHT_AMOUNT, behavior: 'smooth' });
+        break;
+      default:
+        break;
+    }
+  }, []);
+
   // Initialize WebSocket connection
   const initializeWebSocket = useCallback(() => {
     if (wsRef.current?.isOpen()) {
@@ -292,6 +321,7 @@ export function VoiceAgentProvider({ children }) {
           websiteContext,
           (textData) => {
             if (textData.navigate_to) handleNavigation(textData.navigate_to);
+            if (textData.scroll_to) handleScroll(textData.scroll_to);
           },
         );
 
@@ -358,6 +388,7 @@ export function VoiceAgentProvider({ children }) {
       initializeWebSocket,
       playAudioBlob,
       handleNavigation,
+      handleScroll,
     ],
   );
 
