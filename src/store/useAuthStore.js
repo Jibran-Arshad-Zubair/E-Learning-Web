@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 const useAuthStore = create(
   persist(
@@ -11,10 +11,10 @@ const useAuthStore = create(
       isLoading: false,
 
       // Actions
-      setUser: (user) => set({ 
-        user, 
+      setUser: (user) => set({
+        user,
         isAuthenticated: !!user,
-        token: user?.token || null 
+        token: user?.token || null
       }),
 
       setToken: (token) => set({ token }),
@@ -23,8 +23,10 @@ const useAuthStore = create(
 
       logout: () => {
         set({ user: null, token: null, isAuthenticated: false });
-        localStorage.removeItem('token');
-        localStorage.removeItem('auth-storage');
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token');
+          localStorage.removeItem('auth-storage');
+        }
       },
 
       // Getters
@@ -34,11 +36,13 @@ const useAuthStore = create(
     }),
     {
       name: 'auth-storage',
-      storage: localStorage,
-      partialize: (state) => ({ 
-        user: state.user, 
+      // createJSONStorage takes a factory function — evaluated lazily in the
+      // browser only, never at module-parse time on the server.
+      storage: createJSONStorage(() => localStorage),
+      partialize: (state) => ({
+        user: state.user,
         token: state.token,
-        isAuthenticated: state.isAuthenticated 
+        isAuthenticated: state.isAuthenticated
       }),
     }
   )

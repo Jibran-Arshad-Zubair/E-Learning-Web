@@ -27,7 +27,7 @@ export const useRegister = () => {
 
       // Agar backend se token aur user data return ho raha hai
       if (data.token) {
-        localStorage.setItem('token', data.token);
+        if (typeof window !== 'undefined') localStorage.setItem('token', data.token);
         setUser(data.user);
         router.push('/dashboard');
       } else {
@@ -69,7 +69,7 @@ export const useLogin = () => {
   return useMutation({
     mutationFn: (credentials) => authApi.login(credentials),
     onSuccess: (data) => {
-      localStorage.setItem('token', data.token);
+      if (typeof window !== 'undefined') localStorage.setItem('token', data.token);
       setUser(data.user);
       toast.success('Logged in successfully!');
       router.push('/dashboard');
@@ -88,7 +88,7 @@ export const useGoogleLogin = () => {
   return useMutation({
     mutationFn: (token) => authApi.googleLogin(token),
     onSuccess: (data) => {
-      localStorage.setItem('token', data.token);
+      if (typeof window !== 'undefined') localStorage.setItem('token', data.token);
       setUser(data.user);
       toast.success('Google login successful!');
       router.push('/dashboard');
