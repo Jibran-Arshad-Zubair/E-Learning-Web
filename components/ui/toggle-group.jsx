@@ -36,6 +36,8 @@ function ToggleGroup({
   )
 }
 
+console.log('ToggleGroupContext:', ToggleGroupContext);
+
 function ToggleGroupItem({
   className,
   children,
