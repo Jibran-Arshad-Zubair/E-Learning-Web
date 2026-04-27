@@ -27,6 +27,8 @@ const addToRemoveQueue = (toastId) => {
     return
   }
 
+  console.log('Adding toast to remove queue:', toastId);
+
   const timeout = setTimeout(() => {
     toastTimeouts.delete(toastId)
     dispatch({
