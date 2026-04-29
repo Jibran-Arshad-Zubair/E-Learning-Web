@@ -28,6 +28,8 @@ export default function ChatPage() {
     }
   }, [isMobile])
 
+  console.log('Selected Contact:', selectedContact);
+
   const handleBack = useCallback(() => {
     setShowSidebar(true)
   }, [])
