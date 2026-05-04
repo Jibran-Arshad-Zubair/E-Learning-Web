@@ -23,7 +23,7 @@ function CoursesContent() {
   const searchParams = useSearchParams()
   const initialCategory = searchParams.get('category') || 'All'
 
-  console.log('Initial Category from URL:', initialCategory);
+  // console.log('Initial Category from URL:', initialCategory);
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(initialCategory)

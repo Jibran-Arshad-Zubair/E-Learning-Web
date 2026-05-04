@@ -53,7 +53,7 @@ export default function ContactPage() {
     }, 1500)
   }, [formData])
 
-  console.log('Contact Form Data:', formData);
+  // console.log('Contact Form Data:', formData);
 
   return (
     <>
