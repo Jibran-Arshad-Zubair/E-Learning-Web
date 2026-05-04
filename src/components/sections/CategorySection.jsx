@@ -32,6 +32,9 @@ function CategorySection() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-100px' })
 
+  console.log('CategorySection rendered');
+  
+
   return (
     <section className="py-20 bg-[#0A0A0A]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
