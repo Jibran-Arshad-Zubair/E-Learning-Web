@@ -26,7 +26,7 @@ export default function CartPage() {
     toast.success('Cart cleared')
   }, [setCart])
 
-  console.log('Cart Items:', cart);
+  // console.log('Cart Items:', cart);
 
   const { subtotal, discount, total } = useMemo(() => {
     const subtotal = cart.reduce((sum, item) => sum + item.originalPrice, 0)
