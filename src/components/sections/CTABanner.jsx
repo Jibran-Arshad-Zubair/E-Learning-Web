@@ -53,6 +53,17 @@ function CTABanner() {
             </Button>
           </Link>
         </motion.div>
+
+         <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="mt-6 text-sm text-white/70"
+        >
+          No credit card required. Start learning instantly.
+        </motion.div>
+        
       </div>
     </section>
   )

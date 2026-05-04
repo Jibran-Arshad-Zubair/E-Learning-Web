@@ -33,7 +33,6 @@ function CoursesContent() {
   const [showMobileFilters, setShowMobileFilters] = useState(false)
 
   const debouncedSearch = useDebounce(searchQuery, 300)
-
   const filteredCourses = useMemo(() => {
     let result = [...allCourses]
 
